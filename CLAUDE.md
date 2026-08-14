@@ -132,8 +132,10 @@ error a media ejecución deshace ese fichero entero.
 
 Funcionando y verificado:
 
-- Base de datos creada, los tres scripts SQL ejecutados y los datos cargados
-  (6 participantes, 23 jugadores, jornada 1).
+- Base de datos al día: el secret `SUPABASE_DB_URL` está puesto y el proceso de
+  GitHub aplica `sql/0*.sql` en cada push. Comprobado en vivo contra la web
+  publicada: 38 jornadas, 23 jugadores (Sangante ya de defensa), y las funciones
+  devuelven el campo `convocatoria`.
 - `sql/99_autoprueba.sql` ejecutado con resultado `AUTOPRUEBA: TODO CORRECTO`.
   Ojo: **termina siempre en rojo a propósito** — lanza una excepción para que
   PostgreSQL revierta todo lo que ha creado. El mensaje es el resultado.
@@ -144,11 +146,9 @@ Funcionando y verificado:
 
 ## Pendiente
 
-1. **Falta el secret `SUPABASE_DB_URL`** en GitHub para que el SQL se aplique
-   solo (ver «Cómo llega el SQL a Supabase» más abajo). Hasta que el usuario lo
-   cree, la base de datos en vivo sigue sin `sql/01`, `02` y `04`: es decir, con
-   una sola jornada, sin la columna `hora_confirmada`, sin el candado del próximo
-   partido y con Sangante todavía de portero.
+1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase: el proceso
+   automático no la ejecuta (a propósito), así que hay que lanzarla a mano
+   después de tocar el SQL. Recuerda que acaba en rojo aunque vaya todo bien.
 2. **Las horas de cada jornada** hay que irlas confirmando semana a semana desde
    Admin, según las publique LaLiga.
 3. **La plantilla** es la lista oficial de dorsales, pendiente del cierre del
