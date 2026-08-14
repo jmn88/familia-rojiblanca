@@ -93,6 +93,22 @@ sql/99_autoprueba.sql prueba de que todo funciona; no deja rastro
 data/seed.json        los mismos datos en JSON, para referencia
 ```
 
+## Si se te olvida una contraseña
+
+- **El PIN de un participante**: se reinicia desde el panel **Admin**, en la
+  tabla de participantes. La próxima vez que entre, elegirá uno nuevo.
+- **La contraseña de administrador**: no se puede consultar (se guarda con hash
+  bcrypt). Se reinicia ejecutando esto en el SQL Editor de Supabase y entrando
+  **acto seguido** en Admin para fijar la nueva:
+
+  ```sql
+  delete from config where clave = 'admin_pass_hash';
+  delete from sesiones where es_admin;
+  ```
+
+  Mientras no haya contraseña puesta, el puesto de administrador lo puede
+  reclamar cualquiera que entre en la web, así que no dejes el reinicio a medias.
+
 ## Seguridad, en corto
 
 - Las tablas están cerradas: con la clave pública no se puede leer ni escribir
