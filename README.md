@@ -134,7 +134,8 @@ base de datos y nunca salen de ella.
 - **Convocatoria** (opcional): cuando el Sevilla publica la lista de convocados,
   el admin la carga y a partir de ese momento **solo se puede alinear a los
   convocados**; los demás salen tachados y no se dejan elegir. Mientras no haya
-  convocatoria, vale toda la plantilla. Ver más abajo.
+  convocatoria, vale toda la plantilla. Lo enviado antes de conocerse la
+  convocatoria **sigue contando**. Ver más abajo.
 - **Cierre**: automático **1 hora antes del inicio** del partido. El admin puede
   prorrogarlo unos minutos si hace falta. Hasta el cierre nadie ve las
   alineaciones de los demás (solo quién ha enviado ya).
@@ -163,9 +164,15 @@ y el apellido de cada jugador. La web la lee sola:
 5. **Guardar convocatoria.**
 
 A partir de ahí, en «Mi alineación» los no convocados salen tachados y no se
-pueden elegir, y quien ya hubiera enviado un once con alguno de ellos ve un aviso
-rojo diciéndole a quién tiene que cambiar. Su alineación anterior no se borra:
-simplemente no valdrá si no la corrige antes del cierre.
+pueden elegir. Quien ya hubiera enviado un once con alguno de ellos ve un aviso
+con los nombres, y ese jugador le sale tachado sobre el campo.
+
+**Su alineación sigue contando tal cual está**, con la puntuación que saque: lo
+único que pasa es que ese jugador no puede acertar, porque no va a salir en el
+once inicial. Le interesa cambiarlo, pero no pierde la alineación ni figura como
+que no participó. Eso sí: para guardar cualquier cambio tendrá que sustituirlo
+primero, porque a partir de la convocatoria ya no se admite alinear a nadie de
+fuera.
 
 Si te equivocas, **Quitar convocatoria** deja las cosas como estaban y vuelve a
 valer toda la plantilla. Y si al final jugó alguien que no figuraba en la lista,

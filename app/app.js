@@ -94,17 +94,20 @@ function puestos(filas, campo = "puntos") {
 
 /* ------------------------------------------------------------------ campo --- */
 
-function fichaHTML(j) {
-  return `<div class="ficha"><div class="dorsal">${j.dorsal ?? "·"}</div><span class="nom">${esc(j.nombre)}</span></div>`;
+function fichaHTML(j, fuera = false) {
+  return `<div class="ficha${fuera ? " fuera" : ""}"${fuera ? ' title="No está en la convocatoria: no puede acertar"' : ""}>
+            <div class="dorsal">${j.dorsal ?? "·"}</div><span class="nom">${esc(j.nombre)}</span></div>`;
 }
 
-function campoHTML(ids) {
+// 'fuera' son los que se han quedado sin convocar: se dibujan igual, pero
+// tachados, porque siguen en la alineación aunque no puedan acertar nada.
+function campoHTML(ids, fuera = []) {
   if (!ids || !ids.length) {
     return `<div class="campo"><div class="campo-vacio">Ve marcando jugadores y aparecerán aquí sobre el campo.</div></div>`;
   }
   const grupos = { POR: [], DEF: [], MED: [], DEL: [] };
   ids.forEach(id => { const j = jug(id); if (j) grupos[j.posicion].push(j); });
-  const linea = arr => `<div class="linea">${arr.map(fichaHTML).join("")}</div>`;
+  const linea = arr => `<div class="linea">${arr.map(j => fichaHTML(j, fuera.includes(j.id))).join("")}</div>`;
   return `<div class="campo">${linea(grupos.DEL)}${linea(grupos.MED)}${linea(grupos.DEF)}${linea(grupos.POR)}</div>`;
 }
 
@@ -226,9 +229,11 @@ async function pintarAlineacion() {
       <p>${S.guardado.length ? "Tu alineación está guardada. La última versión es la que cuenta." : "Todavía no has enviado tu alineación."}</p>
       ${sobran.length && !cerrada
         ? aviso(`La convocatoria ha dejado fuera a ${sobran.map(id => nombreJug(id)).join(", ")}. `
-              + `Quita ${sobran.length === 1 ? "a ese jugador" : "a esos jugadores"} y elige otros, o tu alineación no valdrá.`, "error")
+              + `Tu alineación cuenta igual, pero ${sobran.length === 1 ? "ese jugador no puede acertar" : "esos jugadores no pueden acertar"}: `
+              + `te interesa cambiar${sobran.length === 1 ? "lo" : "los"} antes del cierre. `
+              + `Para poder guardar cualquier cambio tendrás que sustituir${sobran.length === 1 ? "lo" : "los"} primero.`)
         : ""}
-      ${campoHTML(S.picks)}
+      ${campoHTML(S.picks, sobran)}
       <p style="margin:14px 0 0"><span class="contador ${S.picks.length === 11 ? "completo" : ""}">${S.picks.length}/11</span> jugadores elegidos</p>
       ${conv ? `<p class="cuando">En gris, los que no están en la convocatoria.</p>` : ""}
       <div id="selector">${selectorHTML(S.picks, { bloqueado: cerrada, convocatoria: conv })}</div>
@@ -798,7 +803,10 @@ document.addEventListener("click", async ev => {
         await pintarAdmin();
         $("#msg-conv").innerHTML = aviso(
           `Convocatoria guardada: ${r.jugadores} jugadores. A partir de ahora solo se puede alinear a ellos.`
-          + (r.afectadas ? ` Ojo: ${r.afectadas} ${r.afectadas === 1 ? "alineación ya enviada se queda" : "alineaciones ya enviadas se quedan"} fuera de la convocatoria; a quien le pase, la web se lo avisa al entrar.` : ""),
+          + (r.afectadas
+            ? ` ${r.afectadas} ${r.afectadas === 1 ? "alineación ya enviada tiene" : "alineaciones ya enviadas tienen"} algún jugador sin convocar:`
+              + ` siguen contando tal cual, pero esos jugadores no pueden acertar. La web se lo avisa a cada uno al entrar.`
+            : ""),
           r.afectadas ? "" : "ok");
       }
       return;

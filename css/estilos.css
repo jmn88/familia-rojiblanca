@@ -137,6 +137,9 @@ h3:first-child { margin-top: 0; }
   border: 2px solid var(--rojo);
 }
 .ficha .nom { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+/* sigue en la alineación, pero se quedó sin convocar: no puede acertar */
+.ficha.fuera .nom { text-decoration: line-through; opacity: .75; }
+.ficha.fuera .dorsal { background: #e6e6e6; color: #8a8a8a; border-color: #b9b9b9; }
 .campo-vacio { color: rgba(255,255,255,.75); text-align: center; font-size: 13px; padding: 20px 0; }
 
 /* ------------------------------------------------------------ selector --- */

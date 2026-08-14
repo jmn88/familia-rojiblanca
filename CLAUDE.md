@@ -58,6 +58,12 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   foto no se sube a ningún sitio ni se guarda: lo único que viaja es la lista de
   identificadores, y solo al pulsar Guardar. **La lectura siempre la confirma el
   administrador antes de guardar**: nunca se aplica a ciegas.
+- **La convocatoria no invalida lo ya enviado.** Una alineación guardada antes de
+  conocerse la convocatoria sigue contando y puntuando como cualquier otra; el
+  jugador sin convocar simplemente no puede acertar, porque no saldrá en el once
+  oficial. Ni se borra, ni cuenta como «no participó». Lo que sí se impide es
+  guardar cambios nuevos con alguien de fuera de la lista. Está cubierto por la
+  autoprueba: no lo conviertas en un descarte.
 - **Las alineaciones ajenas no se ven hasta el cierre**; antes solo se sabe quién
   ha enviado ya.
 - **Alineación**: 11 jugadores libres de la plantilla, sin validar posiciones. Se

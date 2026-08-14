@@ -142,6 +142,30 @@ begin
   r := api_guardar(v_tok, v_jor, v_picks);
   if (r->>'ok')::boolean then fallos := fallos || E'\n- ¡deja alinear a un jugador sin convocar!'; end if;
 
+  -- Lo enviado ANTES de conocerse la convocatoria sigue contando tal cual. El
+  -- jugador que se quedo sin convocar simplemente no puede acertar, pero ni se
+  -- borra la alineacion ni se deja de puntuar. (Sigue guardado v_picks, que
+  -- lleva uno sin convocar; con v_conv de once oficial son 10 aciertos = 50.)
+  r := api_admin_once(v_adm, v_jor, v_conv);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'\n- no deja marcar un once oficial sacado de la convocatoria: ' || (r->>'error');
+  end if;
+
+  r := api_jornada(v_jor, null);
+  select x->>'participo', (x->>'puntos')::int into v_pk, v_pts
+    from json_array_elements(r->'filas') x
+   where (x->>'participante_id')::int = v_part;
+  if v_pk is distinct from 'true' then
+    fallos := fallos || E'\n- una alineacion con un jugador sin convocar figura como no participo';
+  end if;
+  if v_pts is distinct from 50 then
+    fallos := fallos || E'\n- una alineacion con un jugador sin convocar deberia puntuar 50 y da '
+                     || coalesce(v_pts::text, 'nulo');
+  end if;
+
+  r := api_admin_once(v_adm, v_jor, null);   -- se despublica y seguimos probando
+  if not (r->>'ok')::boolean then fallos := fallos || E'\n- no deja retirar el once oficial'; end if;
+
   r := api_guardar(v_tok, v_jor, v_conv);
   if not (r->>'ok')::boolean then
     fallos := fallos || E'\n- no deja alinear a los convocados: ' || (r->>'error');
