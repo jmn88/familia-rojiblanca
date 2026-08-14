@@ -41,6 +41,15 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   y la primera que se escribe queda fijada. **Único administrador: Jesús.**
 - **Cierre del plazo**: automático una hora antes del inicio del partido, con
   botones de prórroga (+10 / +30 min) para el administrador.
+- **Solo se alinea al próximo partido**: la jornada de número más bajo con el
+  plazo todavía abierto (`f_jornada_proxima()` en SQL, `es_proxima` en el JSON
+  del estado). Las jornadas futuras no se ofrecen en ninguna pestaña y
+  `api_guardar` las rechaza. Es para que nadie mande su once a la jornada
+  equivocada teniendo las 38 cargadas.
+- **Horas tentativas**: LaLiga fija el horario pocas semanas antes. Las jornadas
+  llevan `hora_confirmada`; mientras esté a `false` la web enseña el distintivo
+  «hora sin confirmar» y lo explica. El administrador la marca al corregir el
+  horario, desde Admin.
 - **Las alineaciones ajenas no se ven hasta el cierre**; antes solo se sabe quién
   ha enviado ya.
 - **Alineación**: 11 jugadores libres de la plantilla, sin validar posiciones. Se
@@ -84,6 +93,7 @@ css/estilos.css
 sql/01_esquema.sql    tablas y cierre de permisos
 sql/02_api.sql        funciones (PIN, cierre, puntuación, admin)
 sql/03_datos.sql      participantes, plantilla y jornada 1
+sql/04_calendario.sql jornadas 2 a 38 del sorteo oficial, con hora tentativa
 sql/99_autoprueba.sql prueba de extremo a extremo; no deja rastro
 data/seed.json        los mismos datos de partida en JSON, como referencia
 ```
@@ -107,21 +117,25 @@ Funcionando y verificado:
 
 ## Pendiente
 
-1. **Un commit sin subir** (pasa a Sangante de portero a defensa en
-   `app/demo.js`, `data/seed.json` y `sql/03_datos.sql`). Falta autenticación de
-   git: no hay credenciales guardadas, `gh` no está instalado y no hay conector
-   de GitHub disponible. Comprueba si tú tienes acceso a GitHub; si no, el
-   usuario debe ejecutar en su propia terminal:
-   `git -C <esta carpeta> push origin main`
-2. **En la base de datos en vivo, Sangante sigue como portero** y debe ser
-   defensa. Se arregla desde el panel Admin, o con
-   `update jugadores set posicion='DEF' where nombre='Sangante';`.
-   **La plantilla vive en la base de datos: cambiar los ficheros no la altera.**
-3. **Solo está cargada la jornada 1** (Sevilla – Rayo Vallecano, sábado 15 de
-   agosto de 2026 a las 21:30, cierre a las 20:30). Faltan las otras 37: o se
-   crean a mano desde Admin, o se monta una importación del calendario.
+1. **Falta ejecutar en Supabase** `sql/01_esquema.sql`, `sql/02_api.sql` y
+   `sql/04_calendario.sql` (en ese orden) para que los cambios lleguen a la base
+   de datos en vivo. Hasta entonces la web publicada seguirá con una sola
+   jornada. Ese mismo `04` carga el calendario, deja la hora sin confirmar en las
+   37 jornadas nuevas y **arregla de paso lo de Sangante** (portero → defensa),
+   que vive en la base de datos y no en los ficheros.
+2. **Credenciales de git**: el primer `push` tiene que lanzarlo el usuario en su
+   propia terminal, porque aquí no se puede mostrar la ventana de acceso
+   (`GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`). Ya están configurados
+   `credential.helper=manager` y `http.sslbackend=schannel`; en cuanto autorice
+   una vez, los `push` desde aquí funcionan solos.
+3. **Las horas de cada jornada** hay que irlas confirmando semana a semana desde
+   Admin, según las publique LaLiga.
 4. **La plantilla** es la lista oficial de dorsales, pendiente del cierre del
    mercado de fichajes de septiembre de 2026. Se ajusta desde Admin.
+5. **Columnas `convocatoria` y `convocatoria_en`** en la tabla `jornadas`: están
+   creadas en el esquema pero **no las usa ni el SQL ni la web**. La idea
+   apuntada allí es que, con lista de convocados, solo se pueda alinear a esos.
+   Sin implementar: preguntar al usuario antes de tocarlo.
 
 ## Cosas que no están aquí ni debes pedir
 

@@ -4,7 +4,7 @@
    La web de verdad (index.html) usa app/api.js y la base de datos real. */
 
 const API = (function () {
-  const CLAVE = "fr_demo_v1";
+  const CLAVE = "fr_demo_v2";   // al cambiar los datos de ejemplo se sube el número
   const dia = 864e5;
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
@@ -37,14 +37,22 @@ const API = (function () {
 
     const kick2 = new Date("2026-08-15T21:30:00+02:00");
     const kick1 = new Date(kick2.getTime() - 7 * dia);
+    const kick3 = new Date(kick2.getTime() + 7 * dia);
 
     return {
       participantes, jugadores, alineaciones, admin_pass: null, sesiones: {},
       jornadas: [
         { id: 1, numero: 1, rival: "Girona (ejemplo)", en_casa: false, kickoff: kick1.toISOString(),
-          cierre: new Date(kick1.getTime() - 36e5).toISOString(), prorroga_hasta: null, once_oficial: once },
+          cierre: new Date(kick1.getTime() - 36e5).toISOString(), prorroga_hasta: null,
+          once_oficial: once, hora_confirmada: true },
         { id: 2, numero: 2, rival: "Rayo Vallecano", en_casa: true, kickoff: kick2.toISOString(),
-          cierre: new Date(kick2.getTime() - 36e5).toISOString(), prorroga_hasta: null, once_oficial: null }
+          cierre: new Date(kick2.getTime() - 36e5).toISOString(), prorroga_hasta: null,
+          once_oficial: null, hora_confirmada: true },
+        // futura y con hora todavía sin fijar: no se puede alinear a ella, y en la
+        // pestaña Jornada ni siquiera aparece. Solo se ve desde Admin.
+        { id: 3, numero: 3, rival: "Athletic", en_casa: false, kickoff: kick3.toISOString(),
+          cierre: new Date(kick3.getTime() - 36e5).toISOString(), prorroga_hasta: null,
+          once_oficial: null, hora_confirmada: false }
       ]
     };
   }
@@ -58,6 +66,8 @@ const API = (function () {
   const puntos = a => ({ 11: 100, 10: 50, 9: 25, 8: 10, 7: 5, 6: 1 }[a] || 0);
   const aciertos = (picks, of) => picks.filter(p => of.includes(p)).length;
   const sesion = tok => db.sesiones[tok] || null;
+  // el próximo partido: la jornada de número más bajo con el plazo aún abierto
+  const proxima = () => db.jornadas.slice().sort((a, b) => a.numero - b.numero).find(j => !cerrada(j)) || null;
   const alin = (jid, pid) => db.alineaciones.find(a => a.jornada_id === jid && a.participante_id === pid);
   const nuevoToken = () => "demo-" + Math.random().toString(36).slice(2);
   const ok = extra => ({ ok: true, ...extra });
@@ -87,8 +97,10 @@ const API = (function () {
         jugadores: db.jugadores.filter(g => g.activo || s?.es_admin),
         jornadas: db.jornadas.map(j => ({
           id: j.id, numero: j.numero, rival: j.rival, en_casa: j.en_casa, kickoff: j.kickoff,
+          hora_confirmada: j.hora_confirmada !== false,
           cierre: cierreEf(j).toISOString(), prorrogada: Boolean(j.prorroga_hasta),
-          cerrada: cerrada(j), publicada: Boolean(j.once_oficial)
+          cerrada: cerrada(j), es_proxima: j.id === proxima()?.id,
+          publicada: Boolean(j.once_oficial)
         })),
         sesion: s ? { participante_id: s.participante_id, es_admin: Boolean(s.es_admin),
                       nombre: db.participantes.find(p => p.id === s.participante_id)?.nombre } : null
@@ -116,6 +128,7 @@ const API = (function () {
       const j = db.jornadas.find(x => x.id === p_jornada);
       if (!j) return mal("Jornada no encontrada");
       if (cerrada(j)) return mal("El plazo está cerrado");
+      if (j.id !== proxima()?.id) return mal("Solo se puede enviar la alineación del próximo partido");
       if (p_picks.length !== 11) return mal("Tienes que elegir exactamente 11 jugadores");
       const a = alin(j.id, s.participante_id);
       const ahora = new Date().toISOString();
@@ -132,8 +145,10 @@ const API = (function () {
       return ok({
         jornada: {
           id: j.id, numero: j.numero, rival: j.rival, en_casa: j.en_casa, kickoff: j.kickoff,
+          hora_confirmada: j.hora_confirmada !== false,
           cierre: cierreEf(j).toISOString(), prorrogada: Boolean(j.prorroga_hasta),
-          cerrada: cerrada(j), once_oficial: j.once_oficial, publicada: Boolean(j.once_oficial)
+          cerrada: cerrada(j), es_proxima: j.id === proxima()?.id,
+          once_oficial: j.once_oficial, publicada: Boolean(j.once_oficial)
         },
         filas: filasJornada(j, s?.participante_id)
       });
@@ -169,14 +184,15 @@ const API = (function () {
       return ok({ token });
     },
 
-    api_admin_jornada: ({ p_token, p_id, p_numero, p_rival, p_en_casa, p_kickoff, p_minutos_antes }) => {
+    api_admin_jornada: ({ p_token, p_id, p_numero, p_rival, p_en_casa, p_kickoff, p_minutos_antes, p_hora_confirmada }) => {
       if (!sesion(p_token)?.es_admin) return mal("No autorizado");
       if (!p_numero || p_numero < 1 || p_numero > 38) return mal("La jornada va de 1 a 38");
       if (!p_rival?.trim()) return mal("Falta el rival");
       const cierre = new Date(+new Date(p_kickoff) - (p_minutos_antes || 60) * 6e4).toISOString();
       let j = p_id ? db.jornadas.find(x => x.id === p_id) : db.jornadas.find(x => x.numero === p_numero);
       if (!j) { j = { id: Math.max(0, ...db.jornadas.map(x => x.id)) + 1, once_oficial: null, prorroga_hasta: null }; db.jornadas.push(j); }
-      Object.assign(j, { numero: p_numero, rival: p_rival.trim(), en_casa: p_en_casa, kickoff: p_kickoff, cierre });
+      Object.assign(j, { numero: p_numero, rival: p_rival.trim(), en_casa: p_en_casa, kickoff: p_kickoff, cierre,
+                         hora_confirmada: Boolean(p_hora_confirmada) });
       db.jornadas.sort((a, b) => a.numero - b.numero);
       salvar();
       return ok({ id: j.id, cierre });

@@ -85,6 +85,15 @@ h3:first-child { margin-top: 0; }
 .partido { font-size: 20px; font-weight: 700; margin: 0 0 2px; }
 .cuando  { color: var(--suave); font-size: 14px; margin: 0; }
 
+/* jornadas cuya hora aun no ha fijado LaLiga */
+.tentativa {
+  display: inline-block; margin-left: 4px; padding: 1px 8px;
+  font-size: 12px; font-weight: 600; color: var(--tinta);
+  background: color-mix(in srgb, var(--amarillo) 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amarillo) 45%, transparent);
+  border-radius: 999px;
+}
+
 .aviso {
   padding: 10px 12px; border-radius: 10px; font-size: 14px;
   background: color-mix(in srgb, var(--amarillo) 14%, transparent);

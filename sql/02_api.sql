@@ -43,6 +43,18 @@ set search_path = public, extensions, pg_temp as $$
   select coalesce((select es_admin from sesiones where token = p_token and expira > now()), false)
 $$;
 
+-- El proximo partido: la jornada de numero mas bajo cuyo plazo sigue abierto.
+-- Es la unica en la que se puede meter alineacion; las demas ni se ofrecen ni se
+-- aceptan, para que nadie se lie enviando un once a la jornada equivocada.
+create or replace function f_jornada_proxima()
+returns int language sql stable security definer
+set search_path = public, extensions, pg_temp as $$
+  select id from jornadas
+   where now() < f_cierre_efectivo(cierre, prorroga_hasta)
+   order by numero
+   limit 1
+$$;
+
 -- ------------------------------------------------------------------ estado ---
 
 create or replace function api_estado(p_token uuid default null)
@@ -67,9 +79,11 @@ set search_path = public, extensions, pg_temp as $$
       select coalesce(json_agg(json_build_object(
                'id', id, 'numero', numero, 'rival', rival, 'en_casa', en_casa,
                'kickoff', kickoff,
+               'hora_confirmada', hora_confirmada,
                'cierre', f_cierre_efectivo(cierre, prorroga_hasta),
                'prorrogada', prorroga_hasta is not null,
                'cerrada', now() >= f_cierre_efectivo(cierre, prorroga_hasta),
+               'es_proxima', id is not distinct from f_jornada_proxima(),
                'publicada', once_oficial is not null)
              order by numero), '[]'::json)
       from jornadas),
@@ -153,6 +167,13 @@ begin
     return json_build_object('ok', false, 'error', 'El plazo esta cerrado');
   end if;
 
+  -- Solo se juega al proximo partido. Aunque alguien trastee la pagina para
+  -- mandar un once a una jornada de dentro de tres meses, aqui se rechaza.
+  if j.id <> f_jornada_proxima() then
+    return json_build_object('ok', false, 'error',
+      'Solo se puede enviar la alineacion del proximo partido');
+  end if;
+
   if coalesce(array_length(p_picks, 1), 0) <> 11 then
     return json_build_object('ok', false, 'error', 'Tienes que elegir exactamente 11 jugadores');
   end if;
@@ -228,8 +249,10 @@ begin
     'ok', true,
     'jornada', json_build_object(
       'id', j.id, 'numero', j.numero, 'rival', j.rival, 'en_casa', j.en_casa,
-      'kickoff', j.kickoff, 'cierre', v_cierre, 'prorrogada', j.prorroga_hasta is not null,
-      'cerrada', v_cerrada, 'once_oficial', j.once_oficial,
+      'kickoff', j.kickoff, 'hora_confirmada', j.hora_confirmada,
+      'cierre', v_cierre, 'prorrogada', j.prorroga_hasta is not null,
+      'cerrada', v_cerrada, 'es_proxima', j.id is not distinct from f_jornada_proxima(),
+      'once_oficial', j.once_oficial,
       'publicada', j.once_oficial is not null, 'publicada_en', j.publicada_en),
     'filas', v_filas);
 end $$;
@@ -310,9 +333,14 @@ begin
   return json_build_object('ok', true, 'token', v_token, 'password_nueva', v_nueva);
 end $$;
 
+-- Cambia la firma (se le anade p_hora_confirmada), asi que hay que retirar la
+-- version antigua: si no, quedarian las dos y PostgREST no sabria cual llamar.
+drop function if exists api_admin_jornada(uuid, int, int, text, boolean, timestamptz, int);
+
 create or replace function api_admin_jornada(
   p_token uuid, p_id int, p_numero int, p_rival text,
-  p_en_casa boolean, p_kickoff timestamptz, p_minutos_antes int default 60)
+  p_en_casa boolean, p_kickoff timestamptz, p_minutos_antes int default 60,
+  p_hora_confirmada boolean default false)
 returns json language plpgsql security definer
 set search_path = public, extensions, pg_temp as $$
 declare v_cierre timestamptz; v_id int;
@@ -328,15 +356,17 @@ begin
   v_cierre := p_kickoff - make_interval(mins => coalesce(p_minutos_antes, 60));
 
   if p_id is null then
-    insert into jornadas (numero, rival, en_casa, kickoff, cierre)
-    values (p_numero, trim(p_rival), p_en_casa, p_kickoff, v_cierre)
+    insert into jornadas (numero, rival, en_casa, kickoff, cierre, hora_confirmada)
+    values (p_numero, trim(p_rival), p_en_casa, p_kickoff, v_cierre, coalesce(p_hora_confirmada, false))
     on conflict (numero) do update
       set rival = excluded.rival, en_casa = excluded.en_casa,
-          kickoff = excluded.kickoff, cierre = excluded.cierre
+          kickoff = excluded.kickoff, cierre = excluded.cierre,
+          hora_confirmada = excluded.hora_confirmada
     returning id into v_id;
   else
     update jornadas set numero = p_numero, rival = trim(p_rival), en_casa = p_en_casa,
-                        kickoff = p_kickoff, cierre = v_cierre
+                        kickoff = p_kickoff, cierre = v_cierre,
+                        hora_confirmada = coalesce(p_hora_confirmada, false)
      where id = p_id returning id into v_id;
   end if;
 

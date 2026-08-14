@@ -51,6 +51,12 @@ function nombreJug(id) {
 }
 const rotulo = j => `${j.en_casa ? "Sevilla" : esc(j.rival)} – ${j.en_casa ? esc(j.rival) : "Sevilla"}`;
 
+// LaLiga fija la hora pocas semanas antes; hasta entonces la que se enseña es
+// tentativa. Solo se avisa cuando el servidor lo dice expresamente.
+const sinHora = j => j.hora_confirmada === false;
+const cuandoHTML = j => `${fechaLarga(j.kickoff)} a las ${hora(j.kickoff)}`
+  + (sinHora(j) ? ` <span class="tentativa">hora sin confirmar</span>` : "");
+
 function textoCuenta(cierre) {
   let ms = new Date(cierre).getTime() - ahora().getTime();
   if (ms <= 0) return { texto: "Plazo cerrado", clase: "cerrada" };
@@ -125,9 +131,21 @@ async function cargarEstado() {
   if (!S.sesion && S.token) { S.token = null; localStorage.removeItem("fr_token"); }
 }
 
+// El próximo partido, que es el único en el que se puede alinear. Lo decide el
+// servidor (es_proxima); el resto es por si la respuesta viniera sin esa marca.
 function jornadaActiva() {
   const js = S.estado?.jornadas || [];
-  return js.find(j => ahora() < new Date(j.cierre)) || js[js.length - 1] || null;
+  return js.find(j => j.es_proxima)
+      || js.find(j => ahora() < new Date(j.cierre))
+      || js[js.length - 1] || null;
+}
+
+// En la pestaña Jornada solo se listan las ya cerradas y el próximo partido: las
+// jornadas futuras no se ofrecen, para no confundir a nadie sobre a cuál juega.
+function jornadasVisibles() {
+  const js = S.estado?.jornadas || [];
+  const prox = jornadaActiva();
+  return js.filter(j => j.cerrada || (prox && j.id === prox.id));
 }
 
 /* ------------------------------------------------------- vista alineación --- */
@@ -165,13 +183,16 @@ async function pintarAlineacion() {
 
   v.innerHTML = `
     <div class="tarjeta">
+      <p class="cuando">Próximo partido</p>
       <p class="partido">Jornada ${j.numero} · ${rotulo(j)}</p>
-      <p class="cuando">${fechaLarga(j.kickoff)} a las ${hora(j.kickoff)}</p>
+      <p class="cuando">${cuandoHTML(j)}</p>
       <span class="cuenta-atras" data-cierre="${j.cierre}"></span>
+      ${sinHora(j) ? aviso("LaLiga todavía no ha fijado la hora de este partido: la que ves es orientativa, y con ella el cierre. Cuando se confirme, el administrador la corrige y el plazo se ajusta solo.") : ""}
       ${j.prorrogada ? aviso("El administrador ha prorrogado el plazo.") : ""}
       ${cerrada
         ? aviso("El plazo se cerró. Puedes ver todas las alineaciones en la pestaña Jornada.")
-        : `<p class="cuando" style="margin-top:10px">El plazo cierra una hora antes del partido, a las ${hora(j.cierre)}. Puedes cambiar tu once las veces que quieras hasta entonces.</p>`}
+        : `<p class="cuando" style="margin-top:10px">El plazo cierra una hora antes del partido, a las ${hora(j.cierre)}. Puedes cambiar tu once las veces que quieras hasta entonces.</p>
+           <p class="cuando" style="margin-top:6px">Solo se juega al próximo partido: las demás jornadas se van abriendo una a una, según se disputan.</p>`}
     </div>
 
     <div class="tarjeta">
@@ -245,7 +266,7 @@ async function guardarAlineacion() {
 
 async function pintarJornada() {
   const v = $("#v-jornada");
-  const js = S.estado?.jornadas || [];
+  const js = jornadasVisibles();
   if (!js.length) { v.innerHTML = `<div class="tarjeta"><p>Todavía no hay jornadas.</p></div>`; return; }
 
   if (!S.jornadaVer || !js.some(j => j.id === S.jornadaVer)) {
@@ -254,7 +275,7 @@ async function pintarJornada() {
   }
 
   const selector = `<select id="sel-jornada">${js.map(j =>
-      `<option value="${j.id}" ${j.id === S.jornadaVer ? "selected" : ""}>Jornada ${j.numero} · ${j.en_casa ? "Sevilla" : j.rival} – ${j.en_casa ? j.rival : "Sevilla"}</option>`
+      `<option value="${j.id}" ${j.id === S.jornadaVer ? "selected" : ""}>Jornada ${j.numero} · ${rotulo(j)}</option>`
     ).join("")}</select>`;
 
   v.innerHTML = `<div class="tarjeta"><label for="sel-jornada">Jornada</label>${selector}</div><p class="cargando">Cargando…</p>`;
@@ -273,6 +294,7 @@ async function pintarJornada() {
       <h2>Alineaciones ocultas</h2>
       <p>Se revelan todas a la vez al cerrarse el plazo, a las ${hora(j.cierre)}.</p>
       <span class="cuenta-atras" data-cierre="${j.cierre}"></span>
+      ${sinHora(j) ? aviso("La hora de este partido aún no es oficial, así que la del cierre también puede moverse.") : ""}
       <h3>Quién ha enviado ya (${enviadas.length}/${filas.length})</h3>
       <div class="tabla-scroll"><table><tbody>
         ${filas.map(f => `<tr class="${f.participante_id === yo ? "yo" : ""}">
@@ -390,16 +412,18 @@ async function pintarAdmin() {
 
   const ed = S.adminEditando;   // jornada en edición (objeto) o null = nueva
   const kickoffLocal = ed ? paraInputFecha(ed.kickoff) : "";
+  const prox = js.find(j => j.es_proxima);
 
   v.innerHTML = `
   <div class="tarjeta">
     <h2>Jornadas</h2>
     <p>El cierre se calcula solo: una hora antes del inicio.</p>
+    ${prox && sinHora(prox) ? aviso(`El próximo partido es la jornada ${prox.numero} y su hora todavía es orientativa. En cuanto LaLiga publique la definitiva, pulsa Editar en esa fila, corrige el día y la hora y marca «hora oficial»: el cierre se recalcula solo.`) : ""}
     <div class="tabla-scroll"><table>
       <thead><tr><th>J</th><th>Partido</th><th>Cierre</th><th>Estado</th><th></th></tr></thead>
       <tbody>${js.map(j => `<tr>
         <td>${j.numero}</td>
-        <td>${rotulo(j)}<br><span class="cuando">${fechaLarga(j.kickoff)} ${hora(j.kickoff)}</span></td>
+        <td>${rotulo(j)}<br><span class="cuando">${cuandoHTML(j)}</span></td>
         <td>${hora(j.cierre)}${j.prorrogada ? " <span class='cuando'>(prorrogado)</span>" : ""}</td>
         <td>${j.publicada ? "puntuada" : j.cerrada ? "cerrada" : "abierta"}</td>
         <td>
@@ -420,6 +444,10 @@ async function pintarAdmin() {
     <div class="fila">
       <div style="flex:2 1 220px"><label for="adm-kick">Día y hora del partido</label><input id="adm-kick" type="datetime-local" value="${kickoffLocal}"></div>
       <div><label for="adm-antes">Cierre (min antes)</label><input id="adm-antes" type="number" min="0" max="600" value="60"></div>
+      <div style="flex:1 1 200px"><label for="adm-confirmada">¿Hora oficial?</label>
+        <p style="margin:0"><input id="adm-confirmada" type="checkbox" ${ed && ed.hora_confirmada ? "checked" : ""}>
+        <span class="cuando">LaLiga ya la ha confirmado</span></p>
+        <p class="cuando" style="margin:4px 0 0">Si lo dejas sin marcar, la web avisa de que es orientativa.</p></div>
     </div>
     <div id="msg-jornada"></div>
     <p><button class="principal" id="btn-jornada">${ed ? "Guardar cambios" : "Crear jornada"}</button>
@@ -569,7 +597,8 @@ document.addEventListener("click", async ev => {
         p_rival: $("#adm-rival").value,
         p_en_casa: $("#adm-casa").value === "1",
         p_kickoff: new Date(kick).toISOString(),
-        p_minutos_antes: Number($("#adm-antes").value || 60)
+        p_minutos_antes: Number($("#adm-antes").value || 60),
+        p_hora_confirmada: $("#adm-confirmada").checked
       }, "#msg-jornada");
       if (r) { S.adminEditando = null; await cargarEstado(); await pintarAdmin(); }
       return;

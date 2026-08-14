@@ -38,16 +38,47 @@
     { "id": 23, "dorsal": 19, "nombre": "Oso",           "posicion": "DEL", "activo": true }
   ],
 
+  "_nota_jornadas": "Calendario del sorteo oficial de LaLiga 26/27. El cierre es siempre una hora antes del kickoff, asi que no se repite aqui. Salvo la jornada 1, la HORA no la ha fijado todavia LaLiga: va una tentativa de las 21:00 y hora_confirmada queda a false, que es lo que hace que la web avise. El dia si es el del calendario.",
+
   "jornadas": [
-    {
-      "numero": 1,
-      "rival": "Rayo Vallecano",
-      "local": true,
-      "kickoff": "2026-08-15T21:30:00+02:00",
-      "cierre": "2026-08-15T20:30:00+02:00",
-      "estado": "abierta",
-      "fuente": "eldiario.es - previa jornada 1 LaLiga 2026-27"
-    }
+    { "numero":  1, "rival": "Rayo Vallecano",     "local": true,  "kickoff": "2026-08-15T21:30:00+02:00", "hora_confirmada": true  },
+    { "numero":  2, "rival": "Athletic",           "local": false, "kickoff": "2026-08-22T21:00:00+02:00", "hora_confirmada": false },
+    { "numero":  3, "rival": "Atlético de Madrid", "local": true,  "kickoff": "2026-08-29T21:00:00+02:00", "hora_confirmada": false },
+    { "numero":  4, "rival": "Espanyol",           "local": false, "kickoff": "2026-09-06T21:00:00+02:00", "hora_confirmada": false },
+    { "numero":  5, "rival": "Valencia",           "local": true,  "kickoff": "2026-09-13T21:00:00+02:00", "hora_confirmada": false },
+    { "numero":  6, "rival": "Deportivo",          "local": false, "kickoff": "2026-09-16T21:00:00+02:00", "hora_confirmada": false, "nota": "entre semana" },
+    { "numero":  7, "rival": "Barcelona",          "local": true,  "kickoff": "2026-09-20T21:00:00+02:00", "hora_confirmada": false },
+    { "numero":  8, "rival": "Levante",            "local": false, "kickoff": "2026-10-11T21:00:00+02:00", "hora_confirmada": false },
+    { "numero":  9, "rival": "Real Madrid",        "local": false, "kickoff": "2026-10-18T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 10, "rival": "Osasuna",            "local": true,  "kickoff": "2026-10-25T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 11, "rival": "Getafe",             "local": false, "kickoff": "2026-11-01T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 12, "rival": "Alavés",             "local": true,  "kickoff": "2026-11-08T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 13, "rival": "Betis",              "local": true,  "kickoff": "2026-11-22T21:00:00+01:00", "hora_confirmada": false, "nota": "derbi en el Pizjuán" },
+    { "numero": 14, "rival": "Real Sociedad",      "local": false, "kickoff": "2026-11-29T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 15, "rival": "Málaga",             "local": true,  "kickoff": "2026-12-06T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 16, "rival": "Elche",              "local": false, "kickoff": "2026-12-13T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 17, "rival": "Racing",             "local": true,  "kickoff": "2026-12-20T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 18, "rival": "Villarreal",         "local": false, "kickoff": "2027-01-03T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 19, "rival": "Celta",              "local": true,  "kickoff": "2027-01-10T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 20, "rival": "Rayo Vallecano",     "local": false, "kickoff": "2027-01-17T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 21, "rival": "Valencia",           "local": false, "kickoff": "2027-01-24T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 22, "rival": "Athletic",           "local": true,  "kickoff": "2027-01-31T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 23, "rival": "Betis",              "local": false, "kickoff": "2027-02-07T21:00:00+01:00", "hora_confirmada": false, "nota": "derbi en La Cartuja" },
+    { "numero": 24, "rival": "Espanyol",           "local": true,  "kickoff": "2027-02-14T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 25, "rival": "Real Madrid",        "local": true,  "kickoff": "2027-02-21T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 26, "rival": "Osasuna",            "local": false, "kickoff": "2027-02-28T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 27, "rival": "Real Sociedad",      "local": true,  "kickoff": "2027-03-07T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 28, "rival": "Alavés",             "local": false, "kickoff": "2027-03-14T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 29, "rival": "Elche",              "local": true,  "kickoff": "2027-03-21T21:00:00+01:00", "hora_confirmada": false },
+    { "numero": 30, "rival": "Barcelona",          "local": false, "kickoff": "2027-04-04T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 31, "rival": "Deportivo",          "local": true,  "kickoff": "2027-04-11T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 32, "rival": "Atlético de Madrid", "local": false, "kickoff": "2027-04-18T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 33, "rival": "Levante",            "local": true,  "kickoff": "2027-04-21T21:00:00+02:00", "hora_confirmada": false, "nota": "entre semana" },
+    { "numero": 34, "rival": "Celta",              "local": false, "kickoff": "2027-05-02T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 35, "rival": "Racing",             "local": false, "kickoff": "2027-05-09T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 36, "rival": "Villarreal",         "local": true,  "kickoff": "2027-05-16T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 37, "rival": "Getafe",             "local": true,  "kickoff": "2027-05-23T21:00:00+02:00", "hora_confirmada": false },
+    { "numero": 38, "rival": "Málaga",             "local": false, "kickoff": "2027-05-30T21:00:00+02:00", "hora_confirmada": false }
   ],
 
   "puntuacion": {

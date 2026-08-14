@@ -12,7 +12,7 @@ do $$
 declare
   v_part   int;
   v_jor    int;
-  v_num    int;
+  v_jor2   int;
   v_tok    uuid;
   v_adm    uuid;
   v_picks  int[];
@@ -34,16 +34,20 @@ begin
     from (select id from jugadores where activo and not (id = any(v_picks)) order by id limit 2) s;
   v_of := v_picks[1:9] || v_otros;          -- 9 coincidencias => 25 puntos
 
-  select min(n) into v_num from generate_series(1, 38) n
-   where n not in (select numero from jornadas);
-  if v_num is null then
-    raise exception 'AUTOPRUEBA: no hay ningun numero de jornada libre para la prueba';
-  end if;
+  -- Apartamos el calendario para que la prueba no dependa de el (con las 38
+  -- jornadas cargadas no quedaria ni un numero libre). Igual que la contrasena
+  -- de admin mas abajo: la excepcion del final lo devuelve todo a su sitio.
+  delete from jornadas;
 
   insert into participantes (nombre) values ('ZZ Prueba') returning id into v_part;
+
+  -- la 1 es el "proximo partido"; la 2 esta abierta pero es posterior
   insert into jornadas (numero, rival, en_casa, kickoff, cierre)
-  values (v_num, 'ZZ Prueba', true, now() + interval '2 hours', now() + interval '1 hour')
+  values (1, 'ZZ Prueba', true, now() + interval '2 hours', now() + interval '1 hour')
   returning id into v_jor;
+  insert into jornadas (numero, rival, en_casa, kickoff, cierre)
+  values (2, 'ZZ Prueba B', false, now() + interval '9 days', now() + interval '8 days')
+  returning id into v_jor2;
 
   -- ------------------------------------------------------------------ PIN
   r := api_login(v_part, '12');
@@ -71,6 +75,10 @@ begin
 
   r := api_guardar(v_tok, v_jor, v_picks);
   if not (r->>'ok')::boolean then fallos := fallos || E'\n- no guarda una alineacion valida: ' || (r->>'error'); end if;
+
+  -- solo se juega al proximo partido, no a una jornada posterior aunque este abierta
+  r := api_guardar(v_tok, v_jor2, v_picks);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- deja alinear a una jornada que no es la proxima'; end if;
 
   -- -------------------------------------------- secreto hasta el cierre
   r := api_jornada(v_jor, null);

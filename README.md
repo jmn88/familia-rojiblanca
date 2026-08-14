@@ -16,9 +16,26 @@ Comprobado: la web lee los 6 participantes, los 23 jugadores y la jornada 1, y
 las tablas **no** son accesibles con la clave pública.
 
 Si algún día hay que rehacerlo: crear el proyecto en <https://supabase.com>,
-ejecutar en el **SQL Editor** los ficheros `sql/01_esquema.sql`, `sql/02_api.sql`
-y `sql/03_datos.sql` **en ese orden**, y copiar en `app/config.js` la *Project
-URL* y la clave `anon public` de **Project Settings → API**.
+ejecutar en el **SQL Editor** los ficheros `sql/01_esquema.sql`, `sql/02_api.sql`,
+`sql/03_datos.sql` y `sql/04_calendario.sql` **en ese orden**, y copiar en
+`app/config.js` la *Project URL* y la clave `anon public` de
+**Project Settings → API**.
+
+### 1 bis. El calendario de las 38 jornadas
+
+`sql/04_calendario.sql` carga el calendario entero del sorteo de LaLiga 26/27.
+Se puede ejecutar sobre la base de datos que ya está funcionando y **no pisa
+nada**: las jornadas que ya existan las deja como están.
+
+El **día** de cada partido es el del calendario oficial. La **hora** todavía no
+la ha fijado LaLiga (la publica unas semanas antes), así que va una tentativa de
+las 21:00 y la jornada queda marcada como *hora sin confirmar*: la web lo avisa
+con un distintivo amarillo y una nota, tanto a los participantes como a ti.
+
+Cuando se sepa la hora de verdad: **Admin → Editar** en esa jornada → corriges
+día y hora y marcas **«hora oficial»**. El cierre se recalcula solo. Mientras la
+jornada que toca siga sin hora confirmada, el panel de Admin te lo recuerda
+arriba del todo.
 
 > La clave `anon` es pública por diseño: va dentro de la web. La seguridad no
 > depende de ella — todas las tablas están bloqueadas y solo se puede operar a
@@ -66,6 +83,12 @@ base de datos y nunca salen de ella.
 
 - **Mi alineación**: eliges 11 jugadores de la plantilla. Puedes cambiarlos las
   veces que quieras hasta el cierre; vale la última versión guardada.
+- **Solo se juega al próximo partido.** Aunque el calendario tenga las 38
+  jornadas cargadas, solo se puede alinear a la primera que siga con el plazo
+  abierto, para que nadie mande su once a la jornada equivocada. Las demás se
+  van abriendo una a una según se disputan. La pestaña **Jornada** enseña las ya
+  cerradas y el próximo partido, nada más. Esto lo comprueba la base de datos,
+  no la página.
 - **Cierre**: automático **1 hora antes del inicio** del partido. El admin puede
   prorrogarlo unos minutos si hace falta. Hasta el cierre nadie ve las
   alineaciones de los demás (solo quién ha enviado ya).
@@ -89,6 +112,7 @@ css/estilos.css
 sql/01_esquema.sql    tablas
 sql/02_api.sql        funciones (seguridad, cierre, puntuación)
 sql/03_datos.sql      participantes, plantilla y jornada 1
+sql/04_calendario.sql las 37 jornadas restantes, con la hora aún sin confirmar
 sql/99_autoprueba.sql prueba de que todo funciona; no deja rastro
 data/seed.json        los mismos datos en JSON, para referencia
 ```
@@ -127,6 +151,8 @@ data/seed.json        los mismos datos en JSON, para referencia
 - Plantilla: lista oficial de dorsales 2026/27, **pendiente del cierre del
   mercado en septiembre**. Se ajusta desde Admin.
 - Jornada 1: **Sevilla – Rayo Vallecano, sábado 15 de agosto 2026, 21:30**
-  (cierre a las 20:30).
+  (cierre a las 20:30). Es la única con hora oficial.
+- Jornadas 2 a 38: rival, campo y día del sorteo oficial de LaLiga 26/27; la
+  hora, tentativa hasta que LaLiga la publique.
 - Las posiciones de los jugadores solo se usan para dibujar el campo; la
   puntuación no depende de ellas.

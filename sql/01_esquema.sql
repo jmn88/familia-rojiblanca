@@ -31,8 +31,27 @@ create table if not exists jornadas (
   prorroga_hasta timestamptz,            -- el admin puede empujar el cierre
   once_oficial   int[],                  -- null mientras no se publica
   publicada_en   timestamptz,
-  constraint once_oficial_11 check (once_oficial is null or array_length(once_oficial,1) = 11)
+  -- LaLiga fija el dia y la hora exactos pocas semanas antes. Mientras tanto la
+  -- jornada lleva una hora tentativa y esta marca a false, para avisar en la web.
+  hora_confirmada boolean not null default false,
+  -- Convocatoria del partido. null = no se conoce todavia y vale toda la
+  -- plantilla; con lista, solo se puede alinear a los convocados.
+  convocatoria    int[],
+  convocatoria_en timestamptz,
+  constraint once_oficial_11 check (once_oficial is null or array_length(once_oficial,1) = 11),
+  constraint convocatoria_min check (convocatoria is null or array_length(convocatoria,1) >= 11)
 );
+
+-- para bases de datos creadas antes de que existieran las columnas
+alter table jornadas add column if not exists hora_confirmada boolean not null default false;
+alter table jornadas add column if not exists convocatoria     int[];
+alter table jornadas add column if not exists convocatoria_en  timestamptz;
+
+do $$ begin
+  alter table jornadas add constraint convocatoria_min
+    check (convocatoria is null or array_length(convocatoria,1) >= 11);
+exception when duplicate_object then null;
+end $$;
 
 create table if not exists alineaciones (
   jornada_id      int not null references jornadas(id) on delete cascade,
