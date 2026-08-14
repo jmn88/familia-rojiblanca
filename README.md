@@ -61,8 +61,16 @@ contraseña:
    la cadena que empieza por `postgresql://`. Tiene que ser la del *Session
    pooler*: la conexión directa a la base de datos no funciona desde GitHub.
 2. Esa cadena lleva un `[YOUR-PASSWORD]` que hay que sustituir por la contraseña
-   de la base de datos. Si no la recuerdas, en **Project Settings → Database**
-   puedes ponerle una nueva (*Reset database password*).
+   de la base de datos. **No es la de tu cuenta de Supabase** (si entras con
+   GitHub, ni siquiera tienes una): es la del usuario `postgres` del proyecto, y
+   solo se enseña al crearlo. Si no la guardaste, no se puede consultar; hay que
+   generar una nueva en el **engranaje de abajo a la izquierda (Project
+   Settings) → Database**, apartado de la contraseña, botón *Reset database
+   password*. Cópiala en ese momento, porque tampoco se vuelve a mostrar.
+
+   Cambiarla es seguro: Supabase actualiza solo sus propios servicios y no hay
+   corte. La web no se entera, porque funciona con la clave `anon`, que es otra
+   cosa distinta y no se toca.
 3. En **GitHub**, en el repositorio: **Settings → Secrets and variables →
    Actions → New repository secret**. Nombre exacto: `SUPABASE_DB_URL`. Valor: la
    cadena ya con la contraseña puesta.

@@ -205,8 +205,15 @@ const CONVOCATORIA = (function () {
 
   /* ------------------------------------------ comparación con la plantilla --- */
 
-  const sinTildes = s => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "");
-  const normal    = s => sinTildes(s).toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim();
+  // «Agoumé» y «AGOUME» son el mismo jugador: se comparan sin tildes ni signos.
+  const TILDES = {
+    "Á": "A", "À": "A", "Ä": "A", "Â": "A", "É": "E", "È": "E", "Ë": "E", "Ê": "E",
+    "Í": "I", "Ì": "I", "Ï": "I", "Î": "I", "Ó": "O", "Ò": "O", "Ö": "O", "Ô": "O",
+    "Ú": "U", "Ù": "U", "Ü": "U", "Û": "U", "Ñ": "N", "Ç": "C"
+  };
+  const normal = s => String(s ?? "").toUpperCase()
+    .replace(/[^A-Z0-9]/g, c => TILDES[c] || " ")
+    .replace(/ +/g, " ").trim();
 
   // Se tiran las iniciales sueltas: «F. González» y «Fran González» han de casar.
   function piezas(nombre) {
