@@ -1,0 +1,62 @@
+{
+  "_nota": "Datos de partida. Plantilla segun lista oficial de dorsales 2026/27 (pendiente del cierre del mercado en septiembre). Revisar posiciones antes de publicar: solo se usan para dibujar el campo, no afectan a la puntuacion.",
+  "temporada": "2026/27",
+  "competicion": "LaLiga",
+
+  "participantes": [
+    { "id": 1, "nombre": "Andrii" },
+    { "id": 2, "nombre": "Chiquitín" },
+    { "id": 3, "nombre": "Javi" },
+    { "id": 4, "nombre": "Jesús" },
+    { "id": 5, "nombre": "Tio P" },
+    { "id": 6, "nombre": "Tito" }
+  ],
+
+  "jugadores": [
+    { "id": 1,  "dorsal": 1,  "nombre": "Odysseas",      "posicion": "POR", "activo": true },
+    { "id": 2,  "dorsal": 13, "nombre": "Fran González", "posicion": "POR", "activo": true },
+    { "id": 3,  "dorsal": 12, "nombre": "Sangante",      "posicion": "POR", "activo": true, "revisar": "confirmar posicion" },
+    { "id": 4,  "dorsal": 2,  "nombre": "Iglesias",      "posicion": "DEF", "activo": true },
+    { "id": 5,  "dorsal": 3,  "nombre": "Julio Díaz",    "posicion": "DEF", "activo": true },
+    { "id": 6,  "dorsal": 4,  "nombre": "Kike Salas",    "posicion": "DEF", "activo": true },
+    { "id": 7,  "dorsal": 5,  "nombre": "A. Castrín",    "posicion": "DEF", "activo": true },
+    { "id": 8,  "dorsal": 23, "nombre": "Marcao",        "posicion": "DEF", "activo": true },
+    { "id": 9,  "dorsal": 22, "nombre": "Carmona",       "posicion": "DEF", "activo": true, "revisar": "lateral derecho" },
+    { "id": 10, "dorsal": 17, "nombre": "Suazo",         "posicion": "DEF", "activo": true, "revisar": "lateral izquierdo" },
+    { "id": 11, "dorsal": 6,  "nombre": "Agoumé",        "posicion": "MED", "activo": true },
+    { "id": 12, "dorsal": 10, "nombre": "Peque",         "posicion": "MED", "activo": true },
+    { "id": 13, "dorsal": 18, "nombre": "Guridi",        "posicion": "MED", "activo": true, "revisar": "centrocampista" },
+    { "id": 14, "dorsal": 26, "nombre": "Manuel Ángel",  "posicion": "MED", "activo": true },
+    { "id": 15, "dorsal": 28, "nombre": "Manu Bueno",    "posicion": "MED", "activo": true },
+    { "id": 16, "dorsal": 30, "nombre": "M. Sierra",     "posicion": "MED", "activo": true },
+    { "id": 17, "dorsal": 27, "nombre": "Nico Guillén",  "posicion": "MED", "activo": true },
+    { "id": 18, "dorsal": 7,  "nombre": "Alfon",         "posicion": "DEL", "activo": true },
+    { "id": 19, "dorsal": 11, "nombre": "Vargas",        "posicion": "DEL", "activo": true },
+    { "id": 20, "dorsal": 21, "nombre": "Ejuke",         "posicion": "DEL", "activo": true },
+    { "id": 21, "dorsal": 16, "nombre": "Isaac Romero",  "posicion": "DEL", "activo": true },
+    { "id": 22, "dorsal": 9,  "nombre": "Robbie Ure",    "posicion": "DEL", "activo": true },
+    { "id": 23, "dorsal": 19, "nombre": "Oso",           "posicion": "DEL", "activo": true }
+  ],
+
+  "jornadas": [
+    {
+      "numero": 1,
+      "rival": "Rayo Vallecano",
+      "local": true,
+      "kickoff": "2026-08-15T21:30:00+02:00",
+      "cierre": "2026-08-15T20:30:00+02:00",
+      "estado": "abierta",
+      "fuente": "eldiario.es - previa jornada 1 LaLiga 2026-27"
+    }
+  ],
+
+  "puntuacion": {
+    "11": 100,
+    "10": 50,
+    "9": 25,
+    "8": 10,
+    "7": 5,
+    "6": 1,
+    "0-5": 0
+  }
+}

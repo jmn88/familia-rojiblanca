@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c8102e">
+<title>Familia Rojiblanca 26/27 — demostración</title>
+<link rel="stylesheet" href="css/estilos.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23c8102e'/><text x='16' y='23' font-size='18' font-weight='bold' text-anchor='middle' fill='white'>S</text></svg>">
+</head>
+<body>
+
+<header>
+  <div class="marca">
+    <span class="escudo">SFC</span>
+    <div>
+      <h1>Familia Rojiblanca</h1>
+      <p>Concurso de alineaciones · LaLiga 26/27</p>
+    </div>
+  </div>
+  <nav id="nav">
+    <a href="#alineacion" data-vista="alineacion">Mi alineación</a>
+    <a href="#jornada"    data-vista="jornada">Jornada</a>
+    <a href="#general"    data-vista="general">General</a>
+    <a href="#admin"      data-vista="admin">Admin</a>
+  </nav>
+</header>
+
+<main>
+  <div class="aviso" style="margin-top:0">
+    <b>Demostración.</b> No hay base de datos: los datos son de ejemplo y se guardan solo en este
+    dispositivo, así que cada uno vería lo suyo. Entra con cualquier nombre y el PIN que quieras
+    (la primera vez queda fijado), y en Admin con cualquier contraseña de 6 caracteres.
+    La jornada 1 contra el «Girona (ejemplo)» es inventada, para poder ver las clasificaciones.
+    <button class="enlace" id="btn-reiniciar">Reiniciar la demostración</button>
+  </div>
+
+  <section id="v-alineacion" class="vista"><p class="cargando">Cargando…</p></section>
+  <section id="v-jornada"    class="vista"></section>
+  <section id="v-general"    class="vista"></section>
+  <section id="v-admin"      class="vista"></section>
+  <p class="pie">11 aciertos → 100 · 10 → 50 · 9 → 25 · 8 → 10 · 7 → 5 · 6 → 1 · 5 o menos → 0</p>
+</main>
+
+<script src="app/demo.js"></script>
+<script src="app/app.js"></script>
+<script>
+  document.getElementById("btn-reiniciar").addEventListener("click", () => {
+    localStorage.removeItem("fr_token");
+    localStorage.removeItem("fr_admin");
+    API.reiniciar();
+  });
+</script>
+</body>
+</html>
