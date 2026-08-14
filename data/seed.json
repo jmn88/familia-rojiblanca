@@ -15,7 +15,7 @@
   "jugadores": [
     { "id": 1,  "dorsal": 1,  "nombre": "Odysseas",      "posicion": "POR", "activo": true },
     { "id": 2,  "dorsal": 13, "nombre": "Fran González", "posicion": "POR", "activo": true },
-    { "id": 3,  "dorsal": 12, "nombre": "Sangante",      "posicion": "POR", "activo": true, "revisar": "confirmar posicion" },
+    { "id": 3,  "dorsal": 12, "nombre": "Sangante",      "posicion": "DEF", "activo": true },
     { "id": 4,  "dorsal": 2,  "nombre": "Iglesias",      "posicion": "DEF", "activo": true },
     { "id": 5,  "dorsal": 3,  "nombre": "Julio Díaz",    "posicion": "DEF", "activo": true },
     { "id": 6,  "dorsal": 4,  "nombre": "Kike Salas",    "posicion": "DEF", "activo": true },

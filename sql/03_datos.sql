@@ -16,7 +16,7 @@ insert into jugadores (dorsal, nombre, posicion)
 select * from (values
   ( 1, 'Odysseas',     'POR'),
   (13, 'Fran González','POR'),
-  (12, 'Sangante',     'POR'),
+  (12, 'Sangante',     'DEF'),
   ( 2, 'Iglesias',     'DEF'),
   ( 3, 'Julio Díaz',   'DEF'),
   ( 4, 'Kike Salas',   'DEF'),

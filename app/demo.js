@@ -9,7 +9,7 @@ const API = (function () {
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
   const PLANTILLA = [
-    [1, "Odysseas", "POR"], [13, "Fran González", "POR"], [12, "Sangante", "POR"],
+    [1, "Odysseas", "POR"], [13, "Fran González", "POR"], [12, "Sangante", "DEF"],
     [2, "Iglesias", "DEF"], [3, "Julio Díaz", "DEF"], [4, "Kike Salas", "DEF"],
     [5, "A. Castrín", "DEF"], [23, "Marcao", "DEF"], [22, "Carmona", "DEF"], [17, "Suazo", "DEF"],
     [6, "Agoumé", "MED"], [10, "Peque", "MED"], [18, "Guridi", "MED"], [26, "Manuel Ángel", "MED"],
