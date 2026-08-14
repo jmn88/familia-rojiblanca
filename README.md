@@ -87,8 +87,9 @@ Supabase → Run workflow**.
 
 En el **SQL Editor** de Supabase, ejecuta `sql/99_autoprueba.sql`. Prueba de
 punta a punta el PIN, el cierre del plazo, el secreto de las alineaciones, la
-puntuación y el panel de admin, y **deshace todo lo que crea**. Termina siempre
-en rojo: si el mensaje dice `AUTOPRUEBA: TODO CORRECTO`, está todo bien.
+convocatoria, la puntuación y el panel de admin, y **deshace todo lo que crea**.
+Termina siempre en rojo: si el mensaje dice `AUTOPRUEBA: TODO CORRECTO`, está
+todo bien.
 
 ### 3. Publicar la web
 
@@ -130,6 +131,10 @@ base de datos y nunca salen de ella.
   van abriendo una a una según se disputan. La pestaña **Jornada** enseña las ya
   cerradas y el próximo partido, nada más. Esto lo comprueba la base de datos,
   no la página.
+- **Convocatoria** (opcional): cuando el Sevilla publica la lista de convocados,
+  el admin la carga y a partir de ese momento **solo se puede alinear a los
+  convocados**; los demás salen tachados y no se dejan elegir. Mientras no haya
+  convocatoria, vale toda la plantilla. Ver más abajo.
 - **Cierre**: automático **1 hora antes del inicio** del partido. El admin puede
   prorrogarlo unos minutos si hace falta. Hasta el cierre nadie ve las
   alineaciones de los demás (solo quién ha enviado ya).
@@ -138,6 +143,38 @@ base de datos y nunca salen de ella.
 - **Clasificación general**: acumulado de las 38 jornadas. Los empates se
   muestran como tales (dos primeros, ningún segundo).
 - Quien no envía alineación figura como **no participó**, con 0 puntos.
+
+## La convocatoria, paso a paso
+
+El Sevilla publica la convocatoria de cada partido como una imagen con el dorsal
+y el apellido de cada jugador. La web la lee sola:
+
+1. **Admin → Convocatoria.** Elige la jornada (viene puesta la del próximo
+   partido) y sube la foto, tal cual te llegue por WhatsApp.
+2. Pulsa **Analizar la foto**. La primera vez tarda algo más (medio minuto,
+   según el móvil) porque se descarga el lector de texto; después va rápido.
+   La foto **no se sube a ningún sitio**: se lee en tu propio móvil.
+3. Te deja marcados los jugadores que ha reconocido, y aparte las líneas que no
+   ha sabido casar con nadie. Suelen ser **canteranos que no están en la
+   plantilla**: cada uno trae un botón *Añadir a la plantilla* que los da de
+   alta y los deja convocados. Si lo que hay es una errata de lectura, a veces
+   propone el jugador parecido («¿Es Oso?») para arreglarlo de un toque.
+4. **Repasa la lista** contra la foto: un toque quita o pone a cualquiera.
+5. **Guardar convocatoria.**
+
+A partir de ahí, en «Mi alineación» los no convocados salen tachados y no se
+pueden elegir, y quien ya hubiera enviado un once con alguno de ellos ve un aviso
+rojo diciéndole a quién tiene que cambiar. Su alineación anterior no se borra:
+simplemente no valdrá si no la corrige antes del cierre.
+
+Si te equivocas, **Quitar convocatoria** deja las cosas como estaban y vuelve a
+valer toda la plantilla. Y si al final jugó alguien que no figuraba en la lista,
+el once oficial no te dejará marcarlo hasta que corrijas la convocatoria: es
+deliberado, porque si no habría gente penalizada por un fallo de lectura.
+
+> La comprobación de verdad está en la base de datos, no en la página: aunque
+> alguien trastee la web, el servidor rechaza cualquier once con un jugador sin
+> convocar.
 
 ## Estructura
 
@@ -148,6 +185,7 @@ demo.html             la misma web con datos de ejemplo y sin base de datos,
 app/config.js         URL y clave de Supabase
 app/api.js            llamadas a la base de datos
 app/demo.js           base de datos de mentira, solo para demo.html
+app/convocatoria.js   lee la foto de la convocatoria y la cruza con la plantilla
 app/app.js            lógica de la interfaz
 css/estilos.css
 sql/01_esquema.sql    tablas
@@ -183,7 +221,8 @@ data/seed.json        los mismos datos en JSON, para referencia
   Un PIN de 4 dígitos con ese límite aguanta de sobra para un grupo de amigos,
   pero no es una cuenta bancaria: no uses un PIN que uses para otra cosa.
 - El plazo de cierre lo comprueba la base de datos con su propio reloj, así que
-  no vale con cambiar la hora del móvil ni trastear la página.
+  no vale con cambiar la hora del móvil ni trastear la página. Lo mismo con la
+  convocatoria: la lista de convocados se valida en el servidor.
 - Las alineaciones ajenas **no salen** de la base de datos hasta el cierre.
 
 ## Datos de partida

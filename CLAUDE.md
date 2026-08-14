@@ -50,6 +50,14 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   llevan `hora_confirmada`; mientras esté a `false` la web enseña el distintivo
   «hora sin confirmar» y lo explica. El administrador la marca al corregir el
   horario, desde Admin.
+- **Convocatoria** (`jornadas.convocatoria`, un `int[]`): opcional. A `null` vale
+  toda la plantilla; con lista, `api_guardar` y `api_admin_once` rechazan a
+  cualquiera que no esté en ella. Se carga desde Admin subiendo la foto que
+  publica el club, que se lee **en el propio navegador** con tesseract.js
+  (`app/convocatoria.js`, descargado de jsDelivr solo al usar esa pantalla). La
+  foto no se sube a ningún sitio ni se guarda: lo único que viaja es la lista de
+  identificadores, y solo al pulsar Guardar. **La lectura siempre la confirma el
+  administrador antes de guardar**: nunca se aplica a ciegas.
 - **Las alineaciones ajenas no se ven hasta el cierre**; antes solo se sabe quién
   ha enviado ya.
 - **Alineación**: 11 jugadores libres de la plantilla, sin validar posiciones. Se
@@ -88,6 +96,7 @@ demo.html             la misma web con datos de ejemplo y sin base de datos
 app/config.js         URL y clave de Supabase
 app/api.js            llamadas RPC a la base de datos
 app/demo.js           base de datos falsa, solo para demo.html
+app/convocatoria.js   lee la foto de la convocatoria (imagen -> lista de jugadores)
 app/app.js            toda la lógica de la interfaz
 css/estilos.css
 sql/01_esquema.sql    tablas y cierre de permisos
@@ -144,10 +153,10 @@ Funcionando y verificado:
    Admin, según las publique LaLiga.
 3. **La plantilla** es la lista oficial de dorsales, pendiente del cierre del
    mercado de fichajes de septiembre de 2026. Se ajusta desde Admin.
-4. **Columnas `convocatoria` y `convocatoria_en`** en la tabla `jornadas`: están
-   creadas en el esquema pero **no las usa ni el SQL ni la web**. La idea
-   apuntada allí es que, con lista de convocados, solo se pueda alinear a esos.
-   Sin implementar: preguntar al usuario antes de tocarlo.
+4. **La convocatoria está entera pero sin estrenar en vivo**: comprobada contra
+   la demo (incluida la lectura de una imagen con el formato del club), no
+   todavía con una foto real del Sevilla ni contra Supabase. El primer partido
+   que se cargue conviene mirarlo con calma.
 
 ## Cosas que no están aquí ni debes pedir
 

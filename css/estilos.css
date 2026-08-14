@@ -159,6 +159,16 @@ h3:first-child { margin-top: 0; }
 .jug[aria-pressed="true"] { background: var(--rojo); border-color: var(--rojo); color: #fff; }
 .jug[aria-pressed="true"] .n { background: #fff; color: var(--rojo); }
 .jug:disabled { opacity: .45; cursor: not-allowed; }
+/* fuera de la convocatoria: se ve, pero no se puede elegir */
+.jug.fuera { text-decoration: line-through; }
+.jug.fuera[aria-pressed="true"] { background: var(--rojo-osc); border-color: var(--rojo-osc); }
+
+.texto-leido {
+  max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  font-size: 12.5px; color: var(--suave); background: var(--fondo);
+  border: 1px solid var(--borde); border-radius: 10px; padding: 10px; margin: 10px 0 0;
+}
+input[type="file"] { padding: 8px 10px; font-size: 14px; }
 
 /* --------------------------------------------------------------- tablas --- */
 

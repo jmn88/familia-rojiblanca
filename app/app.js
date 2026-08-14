@@ -14,9 +14,13 @@ const S = {
   jornadaMia: null,
   jornadaVer: null,
   adminOnce:  [],
-  adminJornada: null,
+  adminConv:  [],     // convocatoria en edición (admin)
+  adminJornada: null, // jornada del once oficial (se marca después del partido)
+  convJornada:  null, // jornada de la convocatoria (se carga antes)
   onceCargado: null,
-  adminEditando: null
+  convCargada: null,
+  adminEditando: null,
+  lecturaFoto: null   // lo que ha salido de leer la foto de la convocatoria
 };
 
 const POSICIONES = [["POR", "Porteros"], ["DEF", "Defensas"], ["MED", "Centrocampistas"], ["DEL", "Delanteros"]];
@@ -106,7 +110,11 @@ function campoHTML(ids) {
 
 /* --------------------------------------------------------------- selector --- */
 
-function selectorHTML(seleccion, { bloqueado = false, admin = false } = {}) {
+/* El selector de once. Con convocatoria, los que no están en ella salen
+   apagados: se siguen viendo (así se sabe quién se ha quedado fuera) pero no
+   se pueden elegir. Si alguien ya los tenía puestos de antes, sí puede
+   quitarlos — lo contrario sería dejarle atrapado con un once inválido. */
+function selectorHTML(seleccion, { bloqueado = false, admin = false, convocatoria = null } = {}) {
   const lista = jugadores(admin).filter(j => j.activo !== false);
   const lleno = seleccion.length >= 11;
   return POSICIONES.map(([cod, titulo]) => {
@@ -114,11 +122,23 @@ function selectorHTML(seleccion, { bloqueado = false, admin = false } = {}) {
     if (!grupo.length) return "";
     return `<h3>${titulo}</h3><div class="jugadores">` + grupo.map(j => {
       const puesto = seleccion.includes(j.id);
-      const off = bloqueado || (!puesto && lleno);
-      return `<button type="button" class="jug" data-elegir="${j.id}" aria-pressed="${puesto}" ${off ? "disabled" : ""}>
+      const fuera = Boolean(convocatoria) && !convocatoria.includes(j.id);
+      const off = bloqueado || (!puesto && (lleno || fuera));
+      return `<button type="button" class="jug${fuera ? " fuera" : ""}" data-elegir="${j.id}"
+                aria-pressed="${puesto}" ${off ? "disabled" : ""}
+                ${fuera ? 'title="No está en la convocatoria"' : ""}>
                 <span class="n">${j.dorsal ?? "·"}</span>${esc(j.nombre)}</button>`;
     }).join("") + `</div>`;
   }).join("");
+}
+
+/* El mismo selector, pero para marcar la convocatoria: sin tope de 11 y sin
+   agrupar por posición, que aquí lo cómodo es ir siguiendo la foto. */
+function selectorConvHTML(seleccion) {
+  const lista = jugadores(true).filter(j => j.activo !== false);
+  return `<div class="jugadores">` + lista.map(j =>
+    `<button type="button" class="jug" data-convocar="${j.id}" aria-pressed="${seleccion.includes(j.id)}">
+       <span class="n">${j.dorsal ?? "·"}</span>${esc(j.nombre)}</button>`).join("") + `</div>`;
 }
 
 /* ------------------------------------------------------------ carga datos --- */
@@ -181,6 +201,11 @@ async function pintarAlineacion() {
   const cerrada = ahora() >= new Date(j.cierre);
   const cambiado = JSON.stringify([...S.picks].sort()) !== JSON.stringify([...S.guardado].sort());
 
+  // La convocatoria puede llegar después de que alguien haya enviado su once.
+  // A nadie se le borra nada: se le avisa de a quién tiene que cambiar.
+  const conv = j.convocatoria && j.convocatoria.length ? j.convocatoria : null;
+  const sobran = conv ? S.picks.filter(id => !conv.includes(id)) : [];
+
   v.innerHTML = `
     <div class="tarjeta">
       <p class="cuando">Próximo partido</p>
@@ -189,6 +214,7 @@ async function pintarAlineacion() {
       <span class="cuenta-atras" data-cierre="${j.cierre}"></span>
       ${sinHora(j) ? aviso("LaLiga todavía no ha fijado la hora de este partido: la que ves es orientativa, y con ella el cierre. Cuando se confirme, el administrador la corrige y el plazo se ajusta solo.") : ""}
       ${j.prorrogada ? aviso("El administrador ha prorrogado el plazo.") : ""}
+      ${conv ? aviso(`Ya se conoce la convocatoria: ${conv.length} jugadores. Solo puedes alinear a los convocados.`) : ""}
       ${cerrada
         ? aviso("El plazo se cerró. Puedes ver todas las alineaciones en la pestaña Jornada.")
         : `<p class="cuando" style="margin-top:10px">El plazo cierra una hora antes del partido, a las ${hora(j.cierre)}. Puedes cambiar tu once las veces que quieras hasta entonces.</p>
@@ -198,12 +224,17 @@ async function pintarAlineacion() {
     <div class="tarjeta">
       <h2>Hola, ${esc(S.sesion.nombre)}</h2>
       <p>${S.guardado.length ? "Tu alineación está guardada. La última versión es la que cuenta." : "Todavía no has enviado tu alineación."}</p>
+      ${sobran.length && !cerrada
+        ? aviso(`La convocatoria ha dejado fuera a ${sobran.map(id => nombreJug(id)).join(", ")}. `
+              + `Quita ${sobran.length === 1 ? "a ese jugador" : "a esos jugadores"} y elige otros, o tu alineación no valdrá.`, "error")
+        : ""}
       ${campoHTML(S.picks)}
       <p style="margin:14px 0 0"><span class="contador ${S.picks.length === 11 ? "completo" : ""}">${S.picks.length}/11</span> jugadores elegidos</p>
-      <div id="selector">${selectorHTML(S.picks, { bloqueado: cerrada })}</div>
+      ${conv ? `<p class="cuando">En gris, los que no están en la convocatoria.</p>` : ""}
+      <div id="selector">${selectorHTML(S.picks, { bloqueado: cerrada, convocatoria: conv })}</div>
       <div id="mensaje-guardar"></div>
       ${cerrada ? "" : `<div class="barra-guardar">
-        <button class="principal" id="btn-guardar" ${S.picks.length === 11 && cambiado ? "" : "disabled"}>
+        <button class="principal" id="btn-guardar" ${S.picks.length === 11 && cambiado && !sobran.length ? "" : "disabled"}>
           ${S.guardado.length ? "Actualizar mi alineación" : "Enviar mi alineación"}</button>
       </div>`}
     </div>
@@ -409,10 +440,23 @@ async function pintarAdmin() {
     S.adminJornada = (js.filter(j => new Date(j.cierre) <= ahora()).pop() || js[0])?.id || null;
     S.adminOnce = [];
   }
+  // el once se marca al acabar el partido, así que arranca en la última jornada
+  // cerrada; la convocatoria se carga antes, así que arranca en la próxima
+  if (!S.convJornada || !js.some(j => j.id === S.convJornada)) {
+    S.convJornada = (js.find(j => j.es_proxima) || js[js.length - 1])?.id || null;
+    S.adminConv = [];
+  }
 
   const ed = S.adminEditando;   // jornada en edición (objeto) o null = nueva
   const kickoffLocal = ed ? paraInputFecha(ed.kickoff) : "";
   const prox = js.find(j => j.es_proxima);
+  // las convocatorias tal y como están guardadas, que son las que mandan
+  const convocatoriaDe = id => {
+    const j = js.find(x => x.id === id);
+    return j?.convocatoria?.length ? j.convocatoria : null;
+  };
+  const convGuardada = convocatoriaDe(S.convJornada);    // la de la tarjeta Convocatoria
+  const convDelOnce  = convocatoriaDe(S.adminJornada);   // la de la jornada del once
 
   v.innerHTML = `
   <div class="tarjeta">
@@ -455,6 +499,32 @@ async function pintarAdmin() {
   </div>
 
   <div class="tarjeta">
+    <h2>Convocatoria</h2>
+    <p>Sube la foto que publica el Sevilla y se leen solos los convocados. Mientras haya convocatoria puesta, nadie podrá alinear a quien no esté en ella.</p>
+    <label for="adm-sel-conv">Jornada</label>
+    <select id="adm-sel-conv">${js.map(j =>
+      `<option value="${j.id}" ${j.id === S.convJornada ? "selected" : ""}>Jornada ${j.numero} · ${rotulo(j)}${j.convocatoria ? " ✓" : ""}</option>`).join("")}</select>
+
+    <p class="cuando" style="margin-top:10px">${convGuardada
+      ? `Convocatoria puesta: ${convGuardada.length} jugadores.`
+      : "Sin convocatoria: por ahora se puede alinear a toda la plantilla."}</p>
+
+    <h3>Leer la foto</h3>
+    <p class="cuando">La foto no se sube a ningún sitio: se lee aquí mismo, en tu móvil. La primera vez tarda más porque se descarga el lector de texto.</p>
+    <input type="file" id="adm-foto" accept="image/*">
+    <p style="margin-top:10px"><button id="btn-analizar">Analizar la foto</button></p>
+    <div id="msg-conv"></div>
+    ${lecturaHTML()}
+
+    <h3>Convocados <span class="contador" id="conv-cuenta">${S.adminConv.length}</span></h3>
+    <p class="cuando">Repasa la lista y corrige lo que haga falta antes de guardar: un toque quita o pone a cualquiera.</p>
+    <div id="selector-conv">${selectorConvHTML(S.adminConv)}</div>
+    <p style="margin-top:14px">
+      <button class="principal" id="btn-conv" ${S.adminConv.length >= 11 ? "" : "disabled"}>Guardar convocatoria</button>
+      ${convGuardada ? `<button id="btn-conv-quitar">Quitar convocatoria</button>` : ""}</p>
+  </div>
+
+  <div class="tarjeta">
     <h2>Once inicial del Sevilla</h2>
     <p>Marca los 11 titulares. Al guardarlo se calculan solas todas las puntuaciones.</p>
     <label for="adm-sel-jornada">Jornada</label>
@@ -462,7 +532,8 @@ async function pintarAdmin() {
       `<option value="${j.id}" ${j.id === S.adminJornada ? "selected" : ""}>Jornada ${j.numero} · ${rotulo(j)}${j.publicada ? " ✓" : ""}</option>`).join("")}</select>
     ${campoHTML(S.adminOnce)}
     <p style="margin:14px 0 0"><span class="contador ${S.adminOnce.length === 11 ? "completo" : ""}">${S.adminOnce.length}/11</span> titulares</p>
-    <div id="selector-admin">${selectorHTML(S.adminOnce, { admin: true })}</div>
+    ${convDelOnce ? `<p class="cuando">En gris, los que no estaban convocados. Si jugó alguno, corrige antes la convocatoria.</p>` : ""}
+    <div id="selector-admin">${selectorHTML(S.adminOnce, { admin: true, convocatoria: convDelOnce })}</div>
     <div id="msg-once"></div>
     <p><button class="principal" id="btn-once" ${S.adminOnce.length === 11 ? "" : "disabled"}>Guardar once oficial</button>
        <button id="btn-despublicar">Quitar</button></p>
@@ -510,7 +581,9 @@ async function pintarAdmin() {
 
   <p class="pie"><button class="enlace" id="btn-salir-admin">Salir del modo administrador</button></p>`;
 
+  // uno detrás de otro, no a la vez: cada carga vuelve a pintar
   if (S.onceCargado !== S.adminJornada) cargarOnceAdmin();
+  else if (S.convCargada !== S.convJornada) cargarConvAdmin();
 }
 
 function adminLoginHTML(mensaje) {
@@ -526,11 +599,57 @@ function adminLoginHTML(mensaje) {
   </div>`;
 }
 
+/* Lo que ha salido de leer la foto, para repasarlo antes de guardar. */
+function lecturaHTML() {
+  const L = S.lecturaFoto;
+  if (!L) return "";
+
+  const sueltas = L.sinReconocer || [];
+  const resumen = L.detalles.length
+    ? `Se han reconocido ${L.detalles.length} jugadores de la plantilla.`
+    : "No se ha reconocido a nadie. Prueba con una foto más nítida o marca los convocados a mano.";
+
+  return `
+    ${aviso(resumen + (sueltas.length
+      ? ` Hay ${sueltas.length} ${sueltas.length === 1 ? "línea" : "líneas"} que no cuadran con nadie de la plantilla.`
+      : ""), L.detalles.length >= 11 ? "ok" : "error")}
+
+    ${L.detalles.length ? `<ul class="once-lista">${L.detalles.map(d =>
+      `<li><b>${d.dorsal ?? "·"}</b> ${esc(d.nombre)}</li>`).join("")}</ul>` : ""}
+
+    ${sueltas.length ? `<h3>Sin reconocer</h3>
+      <p class="cuando">Aparecen en la foto pero no están en la plantilla. Suelen ser canteranos: añádelos y quedan convocados. Si es un fallo de lectura, no hagas nada.</p>
+      <div class="tabla-scroll"><table><tbody>
+        ${sueltas.map((x, i) => `<tr>
+          <td class="num">${x.dorsal ?? "·"}</td>
+          <td>${esc(x.nombre)}</td>
+          <td>${x.sugerencia
+            ? `<button class="menor" data-conv-es="${x.sugerencia.id}" data-linea="${i}">¿Es ${esc(x.sugerencia.nombre)}?</button>`
+            : ""}</td>
+          <td><select class="conv-pos">${POSICIONES.map(([c, t]) =>
+                `<option value="${c}" ${c === "MED" ? "selected" : ""}>${t.slice(0, -1)}</option>`).join("")}</select></td>
+          <td><button class="menor" data-conv-alta="${i}">Añadir a la plantilla</button></td>
+        </tr>`).join("")}
+      </tbody></table></div>` : ""}
+
+    <details class="desglose"><summary>Ver el texto que ha leído</summary>
+      <pre class="texto-leido">${esc(L.texto)}</pre></details>`;
+}
+
 async function cargarOnceAdmin() {
   if (!S.adminJornada) return;
   S.onceCargado = S.adminJornada;
   const d = await API.rpc("api_jornada", { p_jornada: S.adminJornada, p_token: S.adminToken });
-  if (d.ok && d.jornada.once_oficial) { S.adminOnce = d.jornada.once_oficial; await pintarAdmin(); }
+  if (d.ok) S.adminOnce = d.jornada.once_oficial || [];
+  await pintarAdmin();
+}
+
+async function cargarConvAdmin() {
+  if (!S.convJornada) return;
+  S.convCargada = S.convJornada;
+  const d = await API.rpc("api_jornada", { p_jornada: S.convJornada, p_token: S.adminToken });
+  if (d.ok) S.adminConv = d.jornada.convocatoria || [];
+  await pintarAdmin();
 }
 
 async function accionAdmin(fn, args, caja, exito) {
@@ -560,6 +679,20 @@ document.addEventListener("click", async ev => {
       return;
     }
 
+    // marcar convocados: sin tope de 11, y sin repintar toda la pantalla, que
+    // aquí se dan muchos toques seguidos repasando la foto
+    if (t.dataset.convocar) {
+      const id = Number(t.dataset.convocar);
+      const i = S.adminConv.indexOf(id);
+      if (i >= 0) S.adminConv.splice(i, 1); else S.adminConv.push(id);
+      t.setAttribute("aria-pressed", String(i < 0));
+      const cuenta = $("#conv-cuenta");
+      if (cuenta) cuenta.textContent = S.adminConv.length;
+      const guardar = $("#btn-conv");
+      if (guardar) guardar.disabled = S.adminConv.length < 11;
+      return;
+    }
+
     if (t.id === "btn-entrar")  { await entrar(); return; }
     if (t.id === "btn-guardar") { await guardarAlineacion(); return; }
     if (t.id === "btn-salir") {
@@ -578,7 +711,7 @@ document.addEventListener("click", async ev => {
     }
     if (t.id === "btn-salir-admin") {
       await API.rpc("api_logout", { p_token: S.adminToken }).catch(() => {});
-      S.adminToken = null; S.estadoAdm = null; S.adminOnce = [];
+      S.adminToken = null; S.estadoAdm = null; S.adminOnce = []; S.adminConv = []; S.lecturaFoto = null;
       localStorage.removeItem("fr_admin");
       await pintarAdmin(); return;
     }
@@ -609,6 +742,79 @@ document.addEventListener("click", async ev => {
       if (r) { await cargarEstado(); await pintarAdmin(); }
       return;
     }
+    // --- convocatoria ---
+    if (t.id === "btn-analizar") {
+      const foto = $("#adm-foto").files?.[0];
+      const caja = $("#msg-conv");
+      if (!foto) { caja.innerHTML = aviso("Elige primero la foto de la convocatoria.", "error"); return; }
+      t.disabled = true;
+      try {
+        const lectura = await CONVOCATORIA.analizarFoto(
+          foto,
+          jugadores(true).filter(g => g.activo !== false),
+          paso => { caja.innerHTML = aviso(`Leyendo la foto: ${paso}`); }
+        );
+        S.lecturaFoto = lectura;
+        // lo leído se suma a lo que ya hubiera marcado, no lo sustituye
+        lectura.convocados.forEach(id => { if (!S.adminConv.includes(id)) S.adminConv.push(id); });
+        await pintarAdmin();
+      } catch (e) {
+        caja.innerHTML = aviso(e.message, "error");
+        t.disabled = false;
+      }
+      return;
+    }
+    if (t.dataset.convEs) {                       // «¿es este?» de una línea dudosa
+      const id = Number(t.dataset.convEs);
+      if (!S.adminConv.includes(id)) S.adminConv.push(id);
+      S.lecturaFoto.sinReconocer.splice(Number(t.dataset.linea), 1);
+      S.lecturaFoto.detalles.push({ jugador_id: id, nombre: nombreJug(id), dorsal: jug(id)?.dorsal });
+      await pintarAdmin();
+      return;
+    }
+    if (t.dataset.convAlta) {                     // dar de alta a un canterano
+      const linea = S.lecturaFoto.sinReconocer[Number(t.dataset.convAlta)];
+      const r = await accionAdmin("api_admin_jugador", {
+        p_id: null, p_dorsal: linea.dorsal, p_nombre: linea.nombre,
+        p_posicion: $(".conv-pos", t.closest("tr")).value, p_activo: true
+      }, "#msg-conv");
+      if (r) {
+        if (r.id) S.adminConv.push(r.id);
+        S.lecturaFoto.sinReconocer.splice(Number(t.dataset.convAlta), 1);
+        await cargarEstado();
+        await pintarAdmin();
+        $("#msg-conv").innerHTML = aviso(
+          `${linea.nombre} añadido a la plantilla y marcado como convocado.`
+          + " Repasa su posición en la tabla de Plantilla: solo sirve para dibujar el campo.", "ok");
+      }
+      return;
+    }
+    if (t.id === "btn-conv") {
+      const r = await accionAdmin("api_admin_convocatoria",
+        { p_jornada: S.convJornada, p_jugadores: S.adminConv }, "#msg-conv");
+      if (r) {
+        S.lecturaFoto = null;
+        await cargarEstado();
+        await pintarAdmin();
+        $("#msg-conv").innerHTML = aviso(
+          `Convocatoria guardada: ${r.jugadores} jugadores. A partir de ahora solo se puede alinear a ellos.`
+          + (r.afectadas ? ` Ojo: ${r.afectadas} ${r.afectadas === 1 ? "alineación ya enviada se queda" : "alineaciones ya enviadas se quedan"} fuera de la convocatoria; a quien le pase, la web se lo avisa al entrar.` : ""),
+          r.afectadas ? "" : "ok");
+      }
+      return;
+    }
+    if (t.id === "btn-conv-quitar") {
+      if (!confirm("¿Quitar la convocatoria de esta jornada? Se podrá volver a alinear a toda la plantilla.")) return;
+      const r = await accionAdmin("api_admin_convocatoria",
+        { p_jornada: S.convJornada, p_jugadores: null }, "#msg-conv");
+      if (r) {
+        S.adminConv = []; S.lecturaFoto = null;
+        await cargarEstado(); await pintarAdmin();
+        $("#msg-conv").innerHTML = aviso("Convocatoria retirada: vuelve a valer toda la plantilla.", "ok");
+      }
+      return;
+    }
+
     if (t.id === "btn-once") {
       const r = await accionAdmin("api_admin_once",
         { p_jornada: S.adminJornada, p_picks: S.adminOnce }, "#msg-once", "Once oficial guardado. Ya están calculadas las puntuaciones.");
@@ -667,6 +873,13 @@ document.addEventListener("change", async ev => {
     S.adminJornada = Number(ev.target.value);
     S.adminOnce = [];
     S.onceCargado = null;
+    await pintarAdmin();
+  }
+  if (ev.target.id === "adm-sel-conv") {
+    S.convJornada = Number(ev.target.value);
+    S.adminConv = [];
+    S.lecturaFoto = null;
+    S.convCargada = null;
     await pintarAdmin();
   }
 });

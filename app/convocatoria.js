@@ -251,8 +251,9 @@ const CONVOCATORIA = (function () {
      palabra que hay está entera), mientras que «Rafa Romero» se queda a la
      mitad: comparte el apellido, pero le sobra un nombre por explicar. */
   function parecido(a, b) {
+    const entero = parecidoPalabra(normal(a), normal(b));
     const A = piezas(a), B = piezas(b);
-    if (!A.length || !B.length) return parecidoPalabra(normal(a), normal(b));
+    if (!A.length || !B.length) return entero;
     const [corto, largo] = A.length <= B.length ? [A, B] : [B, A];
     let peso = 0, acertado = 0;
     corto.forEach(p => {
@@ -261,7 +262,10 @@ const CONVOCATORIA = (function () {
       largo.forEach(q => { mejor = Math.max(mejor, parecidoPalabra(p, q)); });
       if (mejor >= 0.8) acertado += p.length * mejor;   // una errata sí, dos no
     });
-    return peso ? acertado / peso : 0;
+    // Se queda con lo mejor de las dos formas de mirarlo: por palabras sueltas
+    // («Isaac» dentro de «Isaac Romero») o el nombre entero de una pieza, que es
+    // lo que salva a los nombres cortos con una errata («Osoo» por «Oso»).
+    return Math.max(entero, peso ? acertado / peso : 0);
   }
 
   const ACIERTO   = 0.6;    // a partir de aquí se da por bueno
@@ -307,6 +311,9 @@ const CONVOCATORIA = (function () {
       const nombre = capitalizar(ficha.palabras.join(" "));
       if (!nombre) return;
       const propuesta = sugerencias.get(i);
+      // Sin dorsal y sin parecerse a nadie no hay nada que ofrecer: es el titulo
+      // del cartel, el nombre del rival o un borron. No se enseña.
+      if (ficha.dorsal == null && !propuesta) return;
       sinReconocer.push({
         dorsal: ficha.dorsal,
         nombre,

@@ -84,6 +84,7 @@ set search_path = public, extensions, pg_temp as $$
                'prorrogada', prorroga_hasta is not null,
                'cerrada', now() >= f_cierre_efectivo(cierre, prorroga_hasta),
                'es_proxima', id is not distinct from f_jornada_proxima(),
+               'convocatoria', convocatoria,
                'publicada', once_oficial is not null)
              order by numero), '[]'::json)
       from jornadas),
@@ -188,6 +189,14 @@ begin
     return json_build_object('ok', false, 'error', 'Algun jugador no esta en la plantilla');
   end if;
 
+  -- Con la convocatoria cargada, el once sale de ella y de ningun otro sitio.
+  -- Sin convocatoria (null) vale toda la plantilla, como toda la vida.
+  if j.convocatoria is not null
+     and exists (select 1 from unnest(p_picks) x where not (x = any(j.convocatoria))) then
+    return json_build_object('ok', false, 'error',
+      'Solo puedes alinear a jugadores de la convocatoria');
+  end if;
+
   insert into alineaciones (jornada_id, participante_id, picks)
   values (p_jornada, v_yo, p_picks)
   on conflict (jornada_id, participante_id)
@@ -252,6 +261,7 @@ begin
       'kickoff', j.kickoff, 'hora_confirmada', j.hora_confirmada,
       'cierre', v_cierre, 'prorrogada', j.prorroga_hasta is not null,
       'cerrada', v_cerrada, 'es_proxima', j.id is not distinct from f_jornada_proxima(),
+      'convocatoria', j.convocatoria, 'convocatoria_en', j.convocatoria_en,
       'once_oficial', j.once_oficial,
       'publicada', j.once_oficial is not null, 'publicada_en', j.publicada_en),
     'filas', v_filas);
@@ -390,10 +400,58 @@ begin
   return json_build_object('ok', true, 'cierre', v);
 end $$;
 
+-- ---------------------------------------------------------- convocatoria ---
+-- La lista de convocados del partido. Mientras esta puesta, ni los
+-- participantes ni el propio administrador pueden alinear a nadie de fuera.
+-- Quitarla (p_jugadores null) deja otra vez disponible toda la plantilla.
+
+create or replace function api_admin_convocatoria(p_token uuid, p_jornada int, p_jugadores int[])
+returns json language plpgsql security definer
+set search_path = public, extensions, pg_temp as $$
+declare n int; v_total int; v_afectadas int; v_id int;
+begin
+  if not f_es_admin(p_token) then return json_build_object('ok', false, 'error', 'No autorizado'); end if;
+
+  if p_jugadores is null then
+    update jornadas set convocatoria = null, convocatoria_en = null
+     where id = p_jornada returning id into v_id;
+    if v_id is null then return json_build_object('ok', false, 'error', 'Jornada no encontrada'); end if;
+    return json_build_object('ok', true, 'convocatoria', false);
+  end if;
+
+  v_total := coalesce(array_length(p_jugadores, 1), 0);
+  if v_total < 11 then
+    return json_build_object('ok', false, 'error',
+      'La convocatoria necesita 11 jugadores como minimo');
+  end if;
+
+  select count(distinct x) into n from unnest(p_jugadores) x;
+  if n <> v_total then return json_build_object('ok', false, 'error', 'Hay jugadores repetidos'); end if;
+
+  select count(*) into n from jugadores where id = any(p_jugadores) and activo;
+  if n <> v_total then
+    return json_build_object('ok', false, 'error', 'Algun jugador no esta en la plantilla');
+  end if;
+
+  -- Alineaciones ya enviadas que se quedan fuera de juego: no se tocan (nadie
+  -- borra el once de nadie), pero se avisa al administrador de cuantas son.
+  select count(*) into v_afectadas
+    from alineaciones a
+   where a.jornada_id = p_jornada
+     and exists (select 1 from unnest(a.picks) x where not (x = any(p_jugadores)));
+
+  update jornadas set convocatoria = p_jugadores, convocatoria_en = now()
+   where id = p_jornada returning id into v_id;
+  if v_id is null then return json_build_object('ok', false, 'error', 'Jornada no encontrada'); end if;
+
+  return json_build_object('ok', true, 'convocatoria', true,
+                           'jugadores', v_total, 'afectadas', v_afectadas);
+end $$;
+
 create or replace function api_admin_once(p_token uuid, p_jornada int, p_picks int[])
 returns json language plpgsql security definer
 set search_path = public, extensions, pg_temp as $$
-declare n int;
+declare n int; v_conv int[];
 begin
   if not f_es_admin(p_token) then return json_build_object('ok', false, 'error', 'No autorizado'); end if;
 
@@ -409,6 +467,16 @@ begin
   if n <> 11 then return json_build_object('ok', false, 'error', 'Hay jugadores repetidos'); end if;
   select count(*) into n from jugadores where id = any(p_picks);
   if n <> 11 then return json_build_object('ok', false, 'error', 'Algun jugador no existe'); end if;
+
+  -- Si hay convocatoria, el once inicial tiene que salir de ella. Si de verdad
+  -- jugo alguien que no figuraba, lo que esta mal es la convocatoria: se corrige
+  -- primero ahi, y asi nadie queda penalizado por un error de lectura.
+  select convocatoria into v_conv from jornadas where id = p_jornada;
+  if v_conv is not null
+     and exists (select 1 from unnest(p_picks) x where not (x = any(v_conv))) then
+    return json_build_object('ok', false, 'error',
+      'El once oficial tiene jugadores que no estaban convocados. Corrige antes la convocatoria.');
+  end if;
 
   update jornadas set once_oficial = p_picks, publicada_en = now() where id = p_jornada;
   return json_build_object('ok', true, 'publicada', true);

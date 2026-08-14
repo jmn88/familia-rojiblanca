@@ -4,7 +4,7 @@
    La web de verdad (index.html) usa app/api.js y la base de datos real. */
 
 const API = (function () {
-  const CLAVE = "fr_demo_v2";   // al cambiar los datos de ejemplo se sube el número
+  const CLAVE = "fr_demo_v3";   // al cambiar los datos de ejemplo se sube el número
   const dia = 864e5;
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
@@ -31,9 +31,14 @@ const API = (function () {
       { jornada_id: 1, participante_id: 3, picks: [1, 9, 6, 8, 10, 11, 12, 15, 18, 21, 22] },  //  9
       { jornada_id: 1, participante_id: 4, picks: [2, 9, 6, 8, 10, 11, 12, 15, 18, 21, 22] },  //  8
       { jornada_id: 1, participante_id: 5, picks: [1, 9, 6, 4, 5, 14, 15, 16, 17, 19, 23] },   //  3
-      { jornada_id: 2, participante_id: 2, picks: [1, 9, 6, 8, 10, 11, 12, 13, 18, 21, 20] },
-      { jornada_id: 2, participante_id: 5, picks: [1, 4, 6, 8, 10, 11, 12, 15, 18, 21, 22] }
+      // las de la jornada 2 salen todas de la convocatoria de ejemplo de abajo
+      { jornada_id: 2, participante_id: 2, picks: [1, 9, 6, 7, 10, 11, 12, 13, 15, 21, 20] },
+      { jornada_id: 2, participante_id: 5, picks: [1, 4, 6, 3, 10, 11, 12, 15, 16, 21, 22] }
     ].map(a => ({ ...a, actualizada_en: new Date(Date.now() - dia).toISOString() }));
+
+    // Convocatoria de ejemplo del próximo partido: la plantilla entera menos
+    // Marcao (8), Manuel Ángel (14) y Alfon (18), que se quedan fuera.
+    const convocados = jugadores.map(g => g.id).filter(id => ![8, 14, 18].includes(id));
 
     const kick2 = new Date("2026-08-15T21:30:00+02:00");
     const kick1 = new Date(kick2.getTime() - 7 * dia);
@@ -44,15 +49,15 @@ const API = (function () {
       jornadas: [
         { id: 1, numero: 1, rival: "Girona (ejemplo)", en_casa: false, kickoff: kick1.toISOString(),
           cierre: new Date(kick1.getTime() - 36e5).toISOString(), prorroga_hasta: null,
-          once_oficial: once, hora_confirmada: true },
+          once_oficial: once, hora_confirmada: true, convocatoria: null },
         { id: 2, numero: 2, rival: "Rayo Vallecano", en_casa: true, kickoff: kick2.toISOString(),
           cierre: new Date(kick2.getTime() - 36e5).toISOString(), prorroga_hasta: null,
-          once_oficial: null, hora_confirmada: true },
+          once_oficial: null, hora_confirmada: true, convocatoria: convocados },
         // futura y con hora todavía sin fijar: no se puede alinear a ella, y en la
         // pestaña Jornada ni siquiera aparece. Solo se ve desde Admin.
         { id: 3, numero: 3, rival: "Athletic", en_casa: false, kickoff: kick3.toISOString(),
           cierre: new Date(kick3.getTime() - 36e5).toISOString(), prorroga_hasta: null,
-          once_oficial: null, hora_confirmada: false }
+          once_oficial: null, hora_confirmada: false, convocatoria: null }
       ]
     };
   }
@@ -100,6 +105,7 @@ const API = (function () {
           hora_confirmada: j.hora_confirmada !== false,
           cierre: cierreEf(j).toISOString(), prorrogada: Boolean(j.prorroga_hasta),
           cerrada: cerrada(j), es_proxima: j.id === proxima()?.id,
+          convocatoria: j.convocatoria || null,
           publicada: Boolean(j.once_oficial)
         })),
         sesion: s ? { participante_id: s.participante_id, es_admin: Boolean(s.es_admin),
@@ -130,6 +136,9 @@ const API = (function () {
       if (cerrada(j)) return mal("El plazo está cerrado");
       if (j.id !== proxima()?.id) return mal("Solo se puede enviar la alineación del próximo partido");
       if (p_picks.length !== 11) return mal("Tienes que elegir exactamente 11 jugadores");
+      if (j.convocatoria && p_picks.some(id => !j.convocatoria.includes(id))) {
+        return mal("Solo puedes alinear a jugadores de la convocatoria");
+      }
       const a = alin(j.id, s.participante_id);
       const ahora = new Date().toISOString();
       if (a) { a.picks = p_picks; a.actualizada_en = ahora; }
@@ -148,6 +157,7 @@ const API = (function () {
           hora_confirmada: j.hora_confirmada !== false,
           cierre: cierreEf(j).toISOString(), prorrogada: Boolean(j.prorroga_hasta),
           cerrada: cerrada(j), es_proxima: j.id === proxima()?.id,
+          convocatoria: j.convocatoria || null,
           once_oficial: j.once_oficial, publicada: Boolean(j.once_oficial)
         },
         filas: filasJornada(j, s?.participante_id)
@@ -207,11 +217,28 @@ const API = (function () {
       return ok({ cierre: j.prorroga_hasta });
     },
 
+    api_admin_convocatoria: ({ p_token, p_jornada, p_jugadores }) => {
+      if (!sesion(p_token)?.es_admin) return mal("No autorizado");
+      const j = db.jornadas.find(x => x.id === p_jornada);
+      if (!j) return mal("Jornada no encontrada");
+      if (!p_jugadores) { j.convocatoria = null; salvar(); return ok({ convocatoria: false }); }
+      if (p_jugadores.length < 11) return mal("La convocatoria necesita 11 jugadores como mínimo");
+      if (new Set(p_jugadores).size !== p_jugadores.length) return mal("Hay jugadores repetidos");
+      const afectadas = db.alineaciones.filter(a =>
+        a.jornada_id === j.id && a.picks.some(id => !p_jugadores.includes(id))).length;
+      j.convocatoria = p_jugadores.slice();
+      salvar();
+      return ok({ convocatoria: true, jugadores: p_jugadores.length, afectadas });
+    },
+
     api_admin_once: ({ p_token, p_jornada, p_picks }) => {
       if (!sesion(p_token)?.es_admin) return mal("No autorizado");
       const j = db.jornadas.find(x => x.id === p_jornada);
       if (!j) return mal("Jornada no encontrada");
       if (p_picks && p_picks.length !== 11) return mal("El once oficial son 11 jugadores");
+      if (p_picks && j.convocatoria && p_picks.some(id => !j.convocatoria.includes(id))) {
+        return mal("El once oficial tiene jugadores que no estaban convocados. Corrige antes la convocatoria.");
+      }
       j.once_oficial = p_picks || null;
       salvar();
       return ok({ publicada: Boolean(p_picks) });
@@ -238,10 +265,14 @@ const API = (function () {
       if (!sesion(p_token)?.es_admin) return mal("No autorizado");
       if (!p_nombre?.trim()) return mal("Falta el nombre");
       const datos = { dorsal: p_dorsal, nombre: p_nombre.trim(), posicion: p_posicion, activo: p_activo !== false };
+      let id = p_id;
       if (p_id) Object.assign(db.jugadores.find(x => x.id === p_id), datos);
-      else db.jugadores.push({ id: Math.max(0, ...db.jugadores.map(x => x.id)) + 1, ...datos });
+      else {
+        id = Math.max(0, ...db.jugadores.map(x => x.id)) + 1;
+        db.jugadores.push({ id, ...datos });
+      }
       salvar();
-      return ok();
+      return ok({ id });
     }
   };
 

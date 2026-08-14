@@ -1,7 +1,8 @@
 -- Familia Rojiblanca 26/27 — autoprueba
 --
--- Comprueba de punta a punta el PIN, el cierre de plazo, la puntuacion y el
--- panel de administracion. Crea datos de prueba y los DESHACE al terminar: al
+-- Comprueba de punta a punta el PIN, el cierre de plazo, la convocatoria, la
+-- puntuacion y el panel de administracion. Crea datos de prueba y los DESHACE
+-- al terminar: al
 -- lanzar una excepcion a proposito, PostgreSQL revierte la transaccion entera y
 -- no queda absolutamente nada.
 --
@@ -18,6 +19,7 @@ declare
   v_picks  int[];
   v_otros  int[];
   v_of     int[];
+  v_conv   int[];
   r        json;
   v_pts    int;
   v_pk     text;
@@ -114,6 +116,49 @@ begin
   if not (r->>'ok')::boolean then fallos := fallos || E'\n- la prorroga no funciona'; end if;
   r := api_guardar(v_tok, v_jor, v_picks);
   if not (r->>'ok')::boolean then fallos := fallos || E'\n- tras prorrogar sigue sin dejar enviar'; end if;
+
+  -- ----------------------------------------------------------- convocatoria
+  -- Convocamos a 11: los 10 primeros del once guardado y uno de fuera. Asi el
+  -- jugador v_picks[11] queda expresamente SIN convocar, que es lo que se prueba.
+  v_conv := v_picks[1:10] || v_otros[1:1];
+
+  r := api_admin_convocatoria(gen_random_uuid(), v_jor, v_conv);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- cualquiera puede cargar la convocatoria'; end if;
+
+  r := api_admin_convocatoria(v_adm, v_jor, v_conv[1:5]);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- acepta una convocatoria de 5 jugadores'; end if;
+
+  r := api_admin_convocatoria(v_adm, v_jor, v_conv || v_conv[1:1]);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- acepta una convocatoria con jugadores repetidos'; end if;
+
+  r := api_admin_convocatoria(v_adm, v_jor, v_conv);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'\n- no deja cargar la convocatoria: ' || (r->>'error');
+  end if;
+  if (r->>'afectadas')::int is distinct from 1 then
+    fallos := fallos || E'\n- no avisa de la alineacion que se queda fuera de la convocatoria';
+  end if;
+
+  r := api_guardar(v_tok, v_jor, v_picks);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- ¡deja alinear a un jugador sin convocar!'; end if;
+
+  r := api_guardar(v_tok, v_jor, v_conv);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'\n- no deja alinear a los convocados: ' || (r->>'error');
+  end if;
+
+  r := api_admin_once(v_adm, v_jor, v_picks);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- marca un once oficial con alguien sin convocar'; end if;
+
+  -- al quitarla vuelve a valer toda la plantilla (y deja el once guardado como
+  -- estaba, que es del que se fian las comprobaciones de puntuacion de abajo)
+  r := api_admin_convocatoria(v_adm, v_jor, null);
+  if not (r->>'ok')::boolean then fallos := fallos || E'\n- no deja quitar la convocatoria'; end if;
+
+  r := api_guardar(v_tok, v_jor, v_picks);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'\n- sin convocatoria sigue sin dejar alinear a toda la plantilla';
+  end if;
 
   -- volvemos a cerrar para puntuar
   update jornadas set cierre = now() - interval '1 minute', prorroga_hasta = null where id = v_jor;
