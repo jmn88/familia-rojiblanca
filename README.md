@@ -42,6 +42,37 @@ arriba del todo.
 > través de las funciones controladas de `sql/02_api.sql`, que comprueban el PIN
 > y la hora de cierre en el servidor.
 
+### 1 ter. Que el SQL se aplique solo (así no hay que pegar nada nunca más)
+
+`.github/workflows/aplicar-sql.yml` hace que **cada vez que se suba un cambio
+dentro de `sql/`, GitHub lo aplique a Supabase automáticamente**. Ejecuta en
+orden `sql/01_…`, `02_…`, `03_…`, `04_…`; deja fuera la autoprueba a propósito.
+Cada ejecución queda registrada en la pestaña **Actions** del repositorio, con su
+fecha, su resultado y la lista de ficheros aplicados.
+
+Repetirlo no rompe nada: los scripts están escritos para poder volver a lanzarse
+sin duplicar datos ni pisar lo corregido desde Admin, y cada fichero va dentro de
+una transacción (si algo falla, ese fichero se deshace entero).
+
+**Se configura una sola vez, y hay que hacerlo a mano** porque implica una
+contraseña:
+
+1. En **Supabase**, botón **Connect** (arriba). Busca **Session pooler** y copia
+   la cadena que empieza por `postgresql://`. Tiene que ser la del *Session
+   pooler*: la conexión directa a la base de datos no funciona desde GitHub.
+2. Esa cadena lleva un `[YOUR-PASSWORD]` que hay que sustituir por la contraseña
+   de la base de datos. Si no la recuerdas, en **Project Settings → Database**
+   puedes ponerle una nueva (*Reset database password*).
+3. En **GitHub**, en el repositorio: **Settings → Secrets and variables →
+   Actions → New repository secret**. Nombre exacto: `SUPABASE_DB_URL`. Valor: la
+   cadena ya con la contraseña puesta.
+
+Que el repositorio sea público no afecta: los *secrets* no se ven ni se publican,
+y solo los usa GitHub al ejecutar el proceso.
+
+Para lanzarlo a mano en cualquier momento: pestaña **Actions → Aplicar SQL a
+Supabase → Run workflow**.
+
 ### 2. Comprobar que todo funciona (opcional, 1 minuto)
 
 En el **SQL Editor** de Supabase, ejecuta `sql/99_autoprueba.sql`. Prueba de

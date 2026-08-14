@@ -1,0 +1,63 @@
+# Aplica los scripts de SQL a Supabase automáticamente.
+#
+# Se dispara solo cuando cambia algo dentro de sql/ y se sube a main. También se
+# puede lanzar a mano desde la pestaña Actions de GitHub (botón "Run workflow").
+#
+# Ejecuta en orden 01, 02, 03, 04… (todo sql/0*.sql). NO ejecuta 99_autoprueba.sql:
+# esa prueba borra cosas a propósito para luego deshacerlo, y no pinta aquí.
+#
+# Es seguro repetirlo: los scripts están escritos para poder volver a lanzarse sin
+# duplicar datos ni pisar lo que se haya corregido desde el panel Admin. Además
+# cada fichero va dentro de una transacción, así que si algo falla a media
+# ejecución, ese fichero se deshace entero y la base de datos no queda a medias.
+#
+# Necesita un secret del repositorio llamado SUPABASE_DB_URL con la cadena de
+# conexión "Session pooler" de Supabase. Está explicado en el README.
+
+name: Aplicar SQL a Supabase
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sql/**'
+      - '.github/workflows/aplicar-sql.yml'
+  workflow_dispatch:
+
+# que no se solapen dos ejecuciones tocando la misma base de datos
+concurrency:
+  group: sql-supabase
+  cancel-in-progress: false
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar el cliente de PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends postgresql-client
+
+      - name: Aplicar los scripts
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PGCONN:-}" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL. En GitHub: Settings -> Secrets and variables -> Actions -> New repository secret. El valor es la cadena de conexion 'Session pooler' de Supabase. Esta explicado en el README."
+            exit 1
+          fi
+
+          echo "## Scripts aplicados" >> "$GITHUB_STEP_SUMMARY"
+
+          for f in sql/0*.sql; do
+            echo "──────────── $f"
+            psql "$PGCONN" -v ON_ERROR_STOP=1 --single-transaction -q -f "$f"
+            echo "- \`$f\`" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Base de datos al dia con el commit \`${GITHUB_SHA:0:7}\`." >> "$GITHUB_STEP_SUMMARY"

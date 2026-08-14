@@ -101,6 +101,24 @@ data/seed.json        los mismos datos de partida en JSON, como referencia
 Si tocas `app/demo.js`, recuerda que sus alineaciones usan **identificadores de
 jugador** (el orden de la lista), no dorsales.
 
+## Cómo llega el SQL a Supabase
+
+**No se pega a mano en el SQL Editor.** `.github/workflows/aplicar-sql.yml`
+aplica `sql/0*.sql` (01, 02, 03, 04… — la autoprueba 99 queda fuera a propósito)
+cada vez que se sube a `main` un cambio dentro de `sql/`, y también a demanda
+desde Actions. Usa el secret `SUPABASE_DB_URL`, que es la cadena de conexión
+**Session pooler** de Supabase (la conexión directa es solo IPv6 y no llega desde
+GitHub).
+
+Consecuencia práctica: **cambiar un fichero de `sql/` y subirlo ya es aplicarlo.**
+Por eso los scripts tienen que seguir siendo repetibles — nada de `insert` sin
+`on conflict`, nada de `drop table`, nada que pise lo que el admin haya corregido
+desde la web. Si algún cambio no puede cumplir eso, hay que avisar al usuario en
+vez de colarlo.
+
+Los ficheros van cada uno en su transacción (`--single-transaction`), así que un
+error a media ejecución deshace ese fichero entero.
+
 ## Estado actual
 
 Funcionando y verificado:
@@ -117,22 +135,16 @@ Funcionando y verificado:
 
 ## Pendiente
 
-1. **Falta ejecutar en Supabase** `sql/01_esquema.sql`, `sql/02_api.sql` y
-   `sql/04_calendario.sql` (en ese orden) para que los cambios lleguen a la base
-   de datos en vivo. Hasta entonces la web publicada seguirá con una sola
-   jornada. Ese mismo `04` carga el calendario, deja la hora sin confirmar en las
-   37 jornadas nuevas y **arregla de paso lo de Sangante** (portero → defensa),
-   que vive en la base de datos y no en los ficheros.
-2. **Credenciales de git**: el primer `push` tiene que lanzarlo el usuario en su
-   propia terminal, porque aquí no se puede mostrar la ventana de acceso
-   (`GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`). Ya están configurados
-   `credential.helper=manager` y `http.sslbackend=schannel`; en cuanto autorice
-   una vez, los `push` desde aquí funcionan solos.
-3. **Las horas de cada jornada** hay que irlas confirmando semana a semana desde
+1. **Falta el secret `SUPABASE_DB_URL`** en GitHub para que el SQL se aplique
+   solo (ver «Cómo llega el SQL a Supabase» más abajo). Hasta que el usuario lo
+   cree, la base de datos en vivo sigue sin `sql/01`, `02` y `04`: es decir, con
+   una sola jornada, sin la columna `hora_confirmada`, sin el candado del próximo
+   partido y con Sangante todavía de portero.
+2. **Las horas de cada jornada** hay que irlas confirmando semana a semana desde
    Admin, según las publique LaLiga.
-4. **La plantilla** es la lista oficial de dorsales, pendiente del cierre del
+3. **La plantilla** es la lista oficial de dorsales, pendiente del cierre del
    mercado de fichajes de septiembre de 2026. Se ajusta desde Admin.
-5. **Columnas `convocatoria` y `convocatoria_en`** en la tabla `jornadas`: están
+4. **Columnas `convocatoria` y `convocatoria_en`** en la tabla `jornadas`: están
    creadas en el esquema pero **no las usa ni el SQL ni la web**. La idea
    apuntada allí es que, con lista de convocados, solo se pueda alinear a esos.
    Sin implementar: preguntar al usuario antes de tocarlo.
