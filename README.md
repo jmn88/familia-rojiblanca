@@ -64,9 +64,11 @@ contraseña:
    de la base de datos. **No es la de tu cuenta de Supabase** (si entras con
    GitHub, ni siquiera tienes una): es la del usuario `postgres` del proyecto, y
    solo se enseña al crearlo. Si no la guardaste, no se puede consultar; hay que
-   generar una nueva en el **engranaje de abajo a la izquierda (Project
-   Settings) → Database**, apartado de la contraseña, botón *Reset database
-   password*. Cópiala en ese momento, porque tampoco se vuelve a mostrar.
+   generar una nueva. Está en la sección **Database** del menú lateral →
+   **Settings** (al final de ese apartado), botón *Reset database password*.
+   Ojo: **no** está en *Project Settings*, que es donde uno lo buscaría —
+   la dirección es `/dashboard/project/<tu-proyecto>/database/settings`.
+   Cópiala en ese momento, porque tampoco se vuelve a mostrar.
 
    Cambiarla es seguro: Supabase actualiza solo sus propios servicios y no hay
    corte. La web no se entera, porque funciona con la clave `anon`, que es otra
