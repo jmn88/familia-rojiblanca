@@ -58,6 +58,15 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   foto no se sube a ningún sitio ni se guarda: lo único que viaja es la lista de
   identificadores, y solo al pulsar Guardar. **La lectura siempre la confirma el
   administrador antes de guardar**: nunca se aplica a ciegas.
+- **La foto se interpreta por coordenadas, no por el texto leído.** El cartel va
+  a dos columnas y el lector las devuelve pegadas en un renglón («1 ODYSSEAS 17
+  SUAZO»); además la fuente del club (Montecatini Pro) deforma las cifras — el
+  17 sale como `'`, el 39 como `3`. Partiendo por los números se perdían
+  jugadores enteros, sin salir siquiera como dudosos. Ahora se parte por el
+  hueco horizontal entre palabras (`fichasDe`), y el dorsal es solo un apoyo:
+  manda el apellido. **No lo devuelvas a analizar `data.text`.** Para probarlo
+  sin foto está `CONVOCATORIA.analizarLectura(data, ancho, plantilla)`, al que
+  se le pasa una lectura guardada.
 - **La convocatoria no invalida lo ya enviado.** Una alineación guardada antes de
   conocerse la convocatoria sigue contando y puntuando como cualquier otra; el
   jugador sin convocar simplemente no puede acertar, porque no saldrá en el once

@@ -158,8 +158,20 @@ const CONVOCATORIA = (function () {
   // Con dos columnas y una foto de fondo, cada modo acierta en casos distintos.
   async function leer(trabajador, lienzo, modo) {
     await trabajador.setParameters({ tessedit_pageseg_mode: String(modo) });
-    const { data } = await trabajador.recognize(lienzo);
-    return (data && data.text) || "";
+    const { data } = await trabajador.recognize(lienzo, {}, { text: true, blocks: true });
+    return data || {};
+  }
+
+  // Cada palabra leida, con el recuadro donde estaba en la imagen. Segun la
+  // version del lector viene en un sitio o en otro, asi que se miran los dos.
+  function palabras(data) {
+    if (Array.isArray(data.words) && data.words.length) return data.words;
+    const salida = [];
+    (data.blocks || []).forEach(b =>
+      (b.paragraphs || []).forEach(p =>
+        (p.lines || []).forEach(l =>
+          (l.words || []).forEach(w => salida.push(w)))));
+    return salida;
   }
 
   /* --------------------------------------------- del texto a candidatos --- */
@@ -179,9 +191,6 @@ const CONVOCATORIA = (function () {
     return n >= 1 && n <= 99 ? n : null;
   }
 
-  /* Recorre el texto y va formando fichas «dorsal + palabras». Sirve tanto si
-     cada jugador cae en su línea como si el lector junta las dos columnas en
-     una sola («1 ODYSSEAS 17 SUAZO»): cada cifra abre una ficha nueva. */
   /* El cartel del club separa mucho las letras, y entonces el lector devuelve
      «E J U K E» en vez de «EJUKE». Antes de nada se vuelven a pegar las letras
      sueltas seguidas: si no, cada una parecería basura y el jugador entero se
@@ -202,28 +211,90 @@ const CONVOCATORIA = (function () {
     return salida;
   }
 
+  const trocear = t => String(t).trim().split(/[\s·•.,;:_]+/).filter(Boolean);
+
+  /* De un puñado de trozos seguidos («17», «SUAZO») salen las fichas
+     «dorsal + palabras». Cada cifra abre una ficha nueva. */
+  function fichasDeTrozos(trozos) {
+    const fichas = [];
+    let ficha = null;
+    // Una ficha con dorsal se guarda aunque no se le haya sacado el nombre:
+    // asi al menos sale en la lista de dudosos y se resuelve de un toque.
+    const cerrar = () => {
+      if (ficha && (ficha.palabras.length || ficha.dorsal != null)) fichas.push(ficha);
+      ficha = null;
+    };
+
+    pegarSueltas(trozos).forEach((trozo, i) => {
+      const dorsal = comoDorsal(trozo, i === 0);
+      if (dorsal !== null) { cerrar(); ficha = { dorsal, palabras: [] }; return; }
+      const palabra = trozo.replace(/[^A-Za-zÀ-ÿ'-]/g, "");
+      if (palabra.replace(/[^A-Za-zÀ-ÿ]/g, "").length < 2) return;   // basura suelta
+      if (!ficha) ficha = { dorsal: null, palabras: [] };
+      if (ficha.palabras.length < 4) ficha.palabras.push(palabra);
+    });
+    cerrar();
+
+    // En un trozo va un jugador. Si han salido varias fichas, las que no tienen
+    // nombre son la basura del final del renglon («… EDU ALTOZANO 7 ! >») y solo
+    // sirven para proponer disparates. Un dorsal solo se respeta si va solo.
+    return fichas.length > 1 ? fichas.filter(f => f.palabras.length) : fichas;
+  }
+
+  // Camino de respaldo, cuando el lector no da las coordenadas: cada renglon
+  // del texto, tal cual. Se lia con las dos columnas, pero es mejor que nada.
   function candidatos(texto) {
     const fichas = [];
-    texto.split(/\r?\n/).forEach(linea => {
-      const trozos = pegarSueltas(linea.trim().split(/[\s·•.,;:_]+/).filter(Boolean));
-      let ficha = null;
-      // Una ficha con dorsal se guarda aunque no se le haya sacado el nombre:
-      // asi al menos sale en la lista de dudosos y se resuelve de un toque.
-      const cerrar = () => {
-        if (ficha && (ficha.palabras.length || ficha.dorsal != null)) fichas.push(ficha);
-        ficha = null;
-      };
+    String(texto).split(/\r?\n/).forEach(linea => fichas.push(...fichasDeTrozos(trocear(linea))));
+    return fichas;
+  }
 
-      trozos.forEach((trozo, i) => {
-        const dorsal = comoDorsal(trozo, i === 0);
-        if (dorsal !== null) { cerrar(); ficha = { dorsal, palabras: [] }; return; }
-        const palabra = trozo.replace(/[^A-Za-zÀ-ÿ'-]/g, "");
-        if (palabra.replace(/[^A-Za-zÀ-ÿ]/g, "").length < 2) return;   // basura suelta
-        if (!ficha) ficha = { dorsal: null, palabras: [] };
-        if (ficha.palabras.length < 4) ficha.palabras.push(palabra);
-      });
-      cerrar();
+  /* El camino bueno: mirar DONDE esta cada palabra.
+
+     El cartel va a dos columnas y el lector las devuelve pegadas en un solo
+     renglon («1 ODYSSEAS 17 SUAZO»). Mientras los dorsales se lean bien no pasa
+     nada, pero la fuente del club los deforma —el 17 sale como «'»— y entonces
+     el segundo nombre se quedaba pegado al primer jugador y desaparecia.
+
+     Con las coordenadas da igual lo que pase con los numeros: si entre dos
+     palabras hay un hueco grande, es que son columnas distintas y se parten. */
+  const HUECO = 0.05;      // del ancho de la imagen
+
+  function centro(p) { return (p.bbox.y0 + p.bbox.y1) / 2; }
+
+  function enFilas(lista) {
+    const filas = [];
+    lista.slice().sort((a, b) => centro(a) - centro(b)).forEach(p => {
+      const cy = centro(p);
+      const alto = Math.max(6, p.bbox.y1 - p.bbox.y0);
+      const fila = filas[filas.length - 1];
+      if (fila && Math.abs(cy - fila.cy) <= alto * 0.6) {
+        fila.palabras.push(p);
+        fila.cy = (fila.cy * (fila.palabras.length - 1) + cy) / fila.palabras.length;
+      } else {
+        filas.push({ cy, palabras: [p] });
+      }
     });
+    return filas;
+  }
+
+  function columnasDeFila(fila, ancho) {
+    const ps = fila.palabras.slice().sort((a, b) => a.bbox.x0 - b.bbox.x0);
+    const grupos = [[ps[0]]];
+    for (let i = 1; i < ps.length; i++) {
+      if (ps[i].bbox.x0 - ps[i - 1].bbox.x1 > ancho * HUECO) grupos.push([ps[i]]);
+      else grupos[grupos.length - 1].push(ps[i]);
+    }
+    return grupos;
+  }
+
+  function fichasDe(data, ancho) {
+    const lista = palabras(data).filter(p => p && p.bbox && String(p.text || "").trim());
+    if (!lista.length) return candidatos(data.text || "");
+    const fichas = [];
+    enFilas(lista).forEach(fila =>
+      columnasDeFila(fila, ancho).forEach(grupo =>
+        fichas.push(...fichasDeTrozos(grupo.flatMap(p => trocear(p.text))))));
     return fichas;
   }
 
@@ -275,7 +346,12 @@ const CONVOCATORIA = (function () {
      palabra que hay está entera), mientras que «Rafa Romero» se queda a la
      mitad: comparte el apellido, pero le sobra un nombre por explicar. */
   function parecido(a, b) {
-    const entero = parecidoPalabra(normal(a), normal(b));
+    // Sin espacios tambien: el lector junta muchos nombres («KIKESALAS»,
+    // «ROBBIEURE», «MANUBUENO») y asi siguen casando con los de la plantilla.
+    const entero = Math.max(
+      parecidoPalabra(normal(a), normal(b)),
+      parecidoPalabra(normal(a).replace(/ /g, ""), normal(b).replace(/ /g, ""))
+    );
     const A = piezas(a), B = piezas(b);
     if (!A.length || !B.length) return entero;
     const [corto, largo] = A.length <= B.length ? [A, B] : [B, A];
@@ -298,10 +374,15 @@ const CONVOCATORIA = (function () {
   // ya estaba cogido— y una sugerencia absurda estorba más que ayuda.
   const SUGERENCIA = 0.45;
 
+  /* El nombre pesa 0,7 y el dorsal 0,3. El castigo por dorsal distinto es
+     pequeño a proposito: la fuente del club deforma las cifras (el 17 sale
+     como «'», el 28 como «16») y no se puede penalizar mucho por un numero mal
+     leido. Un nombre clavado con el dorsal cambiado sigue pasando; uno a
+     medias, no. */
   function nota(ficha, jugador) {
-    let n = parecido(ficha.palabras.join(" "), jugador.nombre) * 0.7;
+    let n = parecido(ficha.palabras.join(" "), jugador.nombre) * 0.75;
     if (ficha.dorsal != null && jugador.dorsal != null) {
-      n += ficha.dorsal === jugador.dorsal ? 0.3 : -0.1;
+      n += ficha.dorsal === jugador.dorsal ? 0.3 : -0.05;
     }
     return n;
   }
@@ -338,9 +419,12 @@ const CONVOCATORIA = (function () {
        se llena de ruido y esconde lo que de verdad hay que mirar. */
     const dorsalContado = new Set(detalles.map(d => d.dorsal).filter(d => d != null));
     const yaContado = ficha => {
-      if (ficha.dorsal != null && dorsalContado.has(ficha.dorsal)) return true;
       const leido = ficha.palabras.join(" ");
-      return Boolean(leido) && detalles.some(d => parecido(leido, d.nombre) >= 0.8);
+      // Si trae nombre, manda el nombre: el dorsal se lee mal a menudo y un
+      // numero repetido no significa nada. A «39 EDU ALTOZANO», leido «3», el
+      // dorsal lo confundia con Julio Diaz y lo hacia desaparecer.
+      if (leido) return detalles.some(d => parecido(leido, d.nombre) >= 0.8);
+      return ficha.dorsal != null && dorsalContado.has(ficha.dorsal);
     };
 
     // una entrada por dorsal (o por nombre, si no se leyo el dorsal); entre dos
@@ -397,6 +481,23 @@ const CONVOCATORIA = (function () {
 
   /* --------------------------------------------------------------- público --- */
 
+  function resultado(fichas, plantilla, texto) {
+    const r = emparejar(fichas, plantilla);
+    return {
+      convocados: r.detalles.map(d => d.jugador_id),
+      detalles: r.detalles.sort((a, b) => (a.dorsal ?? 99) - (b.dorsal ?? 99)),
+      sinReconocer: r.sinReconocer,
+      texto
+    };
+  }
+
+  /* Interpreta una lectura ya hecha, sin foto de por medio. Sirve para probar
+     la parte delicada —partir las columnas y casar los nombres— con lecturas
+     reales guardadas, que es como se caza lo que la foto de ejemplo no destapa. */
+  function analizarLectura(data, ancho, plantilla) {
+    return resultado(fichasDe(data, ancho), plantilla, data.text || "");
+  }
+
   /* Lee la foto y devuelve:
        convocados    ids de la plantilla reconocidos, para marcar en la pantalla
        detalles      qué jugador ha salido de qué línea, para poder repasarlo
@@ -422,20 +523,15 @@ const CONVOCATORIA = (function () {
       // nada guardado sin que el administrador lo repase.
       const uno = await leer(trabajador, lienzo, 6);
       const dos = await leer(trabajador, lienzo, 11);
-      const texto  = `${uno}\n${dos}`;
-      const fichas = juntar(candidatos(uno), candidatos(dos));
-      const r      = emparejar(fichas, plantilla);
-
-      return {
-        convocados: r.detalles.map(d => d.jugador_id),
-        detalles: r.detalles.sort((a, b) => (a.dorsal ?? 99) - (b.dorsal ?? 99)),
-        sinReconocer: r.sinReconocer,
-        texto
-      };
+      return resultado(
+        juntar(fichasDe(uno, lienzo.width), fichasDe(dos, lienzo.width)),
+        plantilla,
+        `${uno.text || ""}\n${dos.text || ""}`
+      );
     } finally {
       try { await trabajador.terminate(); } catch { /* daba igual: ya hemos terminado */ }
     }
   }
 
-  return { analizarFoto, capitalizar };
+  return { analizarFoto, analizarLectura, capitalizar };
 })();

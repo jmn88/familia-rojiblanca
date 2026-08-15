@@ -789,8 +789,12 @@ document.addEventListener("click", async ev => {
     }
     if (t.dataset.convAlta) {                     // dar de alta a un canterano
       const linea = S.lecturaFoto.sinReconocer[Number(t.dataset.convAlta)];
+      // El dorsal de la foto se lee mal a menudo. Si el que ha salido ya lo
+      // lleva otro, se da de alta sin dorsal antes que pisárselo a nadie.
+      const duena = linea.dorsal == null ? null
+        : jugadores(true).find(g => g.dorsal === linea.dorsal);
       const r = await accionAdmin("api_admin_jugador", {
-        p_id: null, p_dorsal: linea.dorsal, p_nombre: linea.nombre,
+        p_id: null, p_dorsal: duena ? null : linea.dorsal, p_nombre: linea.nombre,
         p_posicion: $(".conv-pos", t.closest("tr")).value, p_activo: true
       }, "#msg-conv");
       if (r) {
@@ -800,7 +804,10 @@ document.addEventListener("click", async ev => {
         await pintarAdmin();
         $("#msg-conv").innerHTML = aviso(
           `${linea.nombre} añadido a la plantilla y marcado como convocado.`
-          + " Repasa su posición en la tabla de Plantilla: solo sirve para dibujar el campo.", "ok");
+          + (duena
+            ? ` Se ha quedado sin dorsal: el ${linea.dorsal} que se leyó en la foto ya lo lleva ${duena.nombre}, así que ponle el suyo en la tabla de Plantilla.`
+            : " Repasa su posición en la tabla de Plantilla: solo sirve para dibujar el campo."),
+          duena ? "" : "ok");
       }
       return;
     }
