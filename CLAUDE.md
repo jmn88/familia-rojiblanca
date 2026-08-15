@@ -73,6 +73,11 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   directo» del partido, donde el club escribe «¡CONFIRMADO EL ONCE DEL SEVILLA
   FC! … sale con Odysseas; Iglesias, …». Se guarda en `once_propuesto` y el
   administrador lo confirma desde Admin con «Usar esta propuesta» + Guardar.
+  Ventanas de vigilancia (las decide SQL, no el cron): la convocatoria desde el
+  día antes del partido y cada media hora; el once cada cinco minutos desde 90
+  min antes hasta que aparece. Si a 45 min del inicio no hay once ni propuesta,
+  Admin lo avisa en rojo (se calcula en el navegador con `kickoff`, sin estado
+  nuevo) y enseña el último intento del robot (`once_robot_intento/motivo`).
   Decisión del usuario, y con motivo: el once reparte los puntos, así que de eso
   responde una persona. **No lo conviertas en automático.**
   Ojo al buscar en el HTML del club: el once va en MAYÚSCULAS y hay cadenas de

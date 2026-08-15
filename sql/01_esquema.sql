@@ -56,6 +56,10 @@ alter table jornadas add column if not exists once_propuesto        int[];
 alter table jornadas add column if not exists once_propuesto_en     timestamptz;
 alter table jornadas add column if not exists once_propuesto_fuente text;
 
+-- ultimo intento del robot y por que se volvio de vacio, para poder verlo en Admin
+alter table jornadas add column if not exists once_robot_intento timestamptz;
+alter table jornadas add column if not exists once_robot_motivo  text;
+
 do $$ begin
   alter table jornadas add constraint convocatoria_min
     check (convocatoria is null or array_length(convocatoria,1) >= 11);

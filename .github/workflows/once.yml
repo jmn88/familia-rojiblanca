@@ -1,8 +1,12 @@
 # Deja PROPUESTO el once inicial del Sevilla FC.
 #
-# Desde dos horas antes del partido mira si el club ha confirmado ya la
-# alineacion en la noticia "en directo". Cuando la encuentra, la guarda como
-# propuesta y avisa en el resumen.
+# Mira cada cinco minutos. Quien decide si toca o no es la base de datos
+# (robot_pendiente_once): solo contesta desde hora y media antes del partido y
+# hasta que la alineacion aparece. El resto del dia esto se va de vacio en unos
+# segundos sin tocar nada.
+#
+# Si a 45 minutos del partido sigue sin encontrarla, la web lo avisa en Admin
+# para que se marque a mano.
 #
 # NO la publica: el once oficial es lo que reparte los puntos, asi que lo
 # confirma el administrador desde Admin ("Usar esta propuesta" y guardar).
@@ -16,7 +20,7 @@ name: Proponer el once inicial
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 concurrency:
@@ -29,8 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar el cliente de PostgreSQL
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client
+      # Esto se lanza cada cinco minutos: si psql ya viene en la maquina, no se
+      # pierden veinte segundos instalandolo otra vez.
+      - name: Asegurar el cliente de PostgreSQL
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client)
 
       - name: Buscar el once y dejarlo propuesto
         env:
@@ -51,7 +57,15 @@ jobs:
           leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
 
           if [ "$(leer ok)" != "True" ]; then
-            echo "Sin proponer nada: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+            MOTIVO=$(leer motivo)
+            echo "Sin proponer nada: $MOTIVO" >> "$GITHUB_STEP_SUMMARY"
+
+            # Si habia un partido esperando el once, se anota el intento, para
+            # que en Admin se vea que el robot esta mirando y que ha encontrado.
+            if python3 robot/orden_sql.py nota "$MOTIVO" < pendiente.json > nota.sql; then
+              cat nota.sql
+              psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f nota.sql
+            fi
             exit 0
           fi
 

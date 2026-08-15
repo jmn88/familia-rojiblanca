@@ -140,7 +140,10 @@ base de datos y nunca salen de ella.
   prorrogarlo unos minutos si hace falta. Hasta el cierre nadie ve las
   alineaciones de los demás (solo quién ha enviado ya).
 - **Clasificación del día**: al cerrarse se revelan todos los onces. Cuando el
-  admin marca el once inicial real, aparecen aciertos y puntos.
+  admin marca el once inicial real, aparecen aciertos y puntos. Debajo de cada
+  alineación se ve **a qué hora la envió cada uno** y, si la retocó, cuándo fue
+  el último cambio — para las discusiones de después. Esas horas salen al mismo
+  tiempo que las alineaciones: antes del cierre nadie las ve.
 - **Clasificación general**: acumulado de las 38 jornadas. Los empates se
   muestran como tales (dos primeros, ningún segundo).
 - Quien no envía alineación figura como **no participó**, con 0 puntos.
@@ -149,9 +152,9 @@ base de datos y nunca salen de ella.
 
 El Sevilla FC publica la convocatoria en su propia web, y dentro va **en texto**:
 «La lista completa la forman: Odysseas, Fran González…». Un proceso de GitHub
-(`.github/workflows/convocatoria.yml`) mira **cada media hora** si hay un partido
-en los próximos tres días sin convocatoria y con el plazo abierto; cuando el club
-la publica, la encuentra, cruza los nombres con la plantilla y la carga. No tienes
+(`.github/workflows/convocatoria.yml`) mira **cada media hora, desde el día antes
+del partido**, si sigue sin convocatoria y con el plazo abierto; cuando el club la
+publica, la encuentra, cruza los nombres con la plantilla y la carga. No tienes
 que hacer nada.
 
 Un par de reglas para que no te sorprenda:
@@ -179,6 +182,11 @@ lo escribe en la noticia **en directo** del partido:
 > **20:10 | ¡CONFIRMADO EL ONCE DEL SEVILLA FC!**
 > Luis García Plaza sale con Odysseas; Iglesias, Sangante, Kike Salas, Suazo;
 > Agoumé, Nico Guillén, Guridi; Miguel Sierra, Oso e Isaac.
+
+Lo busca **cada cinco minutos, desde hora y media antes del partido**, y deja de
+mirar en cuanto lo encuentra. Si a **45 minutos del inicio** sigue sin aparecer,
+la pestaña **Admin** te lo avisa en rojo para que lo vayas marcando a mano; ahí
+verás también a qué hora miró el robot por última vez y con qué se encontró.
 
 De ahí saca los once nombres. Pero **no los publica**: los deja como propuesta.
 En **Admin → Once inicial** te aparece un recuadro con la alineación leída y un

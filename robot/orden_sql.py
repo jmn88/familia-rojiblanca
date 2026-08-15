@@ -41,9 +41,24 @@ def orden(cual, datos):
         FUNCIONES[cual], jornada, ids, texto(datos.get("fuente") or ""))
 
 
+def nota(pendiente, motivo):
+    """La orden que apunta un intento fallido del robot del once.
+
+    Recibe lo que devolvio robot_pendiente_once(): si no habia ningun partido
+    esperando, no hay nada que apuntar."""
+    jornada = (pendiente.get("jornada") or {}).get("id")
+    if not jornada:
+        raise SystemExit("no habia ningun partido esperando el once")
+    return "select robot_once_nota(%d, %s);" % (int(jornada), texto(motivo or ""))
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
-    print(orden(sys.argv[1] if len(sys.argv) > 1 else "", json.load(sys.stdin)))
+    cual = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cual == "nota":
+        print(nota(json.load(sys.stdin), sys.argv[2] if len(sys.argv) > 2 else ""))
+    else:
+        print(orden(cual, json.load(sys.stdin)))
 
 
 if __name__ == "__main__":

@@ -85,6 +85,7 @@ set search_path = public, extensions, pg_temp as $$
                'cerrada', now() >= f_cierre_efectivo(cierre, prorroga_hasta),
                'es_proxima', id is not distinct from f_jornada_proxima(),
                'convocatoria', convocatoria,
+               'tiene_propuesta', once_propuesto is not null,
                'publicada', once_oficial is not null)
              order by numero), '[]'::json)
       from jornadas),
@@ -233,6 +234,7 @@ begin
            'picks',          t.picks,
            'aciertos',       t.aciertos,
            'puntos',         t.puntos,
+           'enviada_en',     t.enviada_en,
            'actualizada_en', t.actualizada_en)
          order by t.orden, t.nombre), '[]'::json)
     into v_filas
@@ -245,6 +247,9 @@ begin
            case when j.once_oficial is null then null
                 when a.picks is null then 0
                 else f_puntos(f_aciertos(a.picks, j.once_oficial)) end as puntos,
+           -- las horas de envio se revelan con las alineaciones: al cierre, o
+           -- las tuyas propias antes
+           case when v_cerrada or p.id = v_yo then a.enviada_en end as enviada_en,
            case when v_cerrada or p.id = v_yo then a.actualizada_en end as actualizada_en,
            case when j.once_oficial is null then 0
                 when a.picks is null then 0
@@ -265,6 +270,7 @@ begin
       'convocatoria_fuente', j.convocatoria_fuente,
       'once_oficial', j.once_oficial,
       'once_propuesto', j.once_propuesto, 'once_propuesto_fuente', j.once_propuesto_fuente,
+      'once_robot_intento', j.once_robot_intento, 'once_robot_motivo', j.once_robot_motivo,
       'publicada', j.once_oficial is not null, 'publicada_en', j.publicada_en),
     'filas', v_filas);
 end $$;

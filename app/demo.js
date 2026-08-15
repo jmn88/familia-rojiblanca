@@ -4,7 +4,7 @@
    La web de verdad (index.html) usa app/api.js y la base de datos real. */
 
 const API = (function () {
-  const CLAVE = "fr_demo_v3";   // al cambiar los datos de ejemplo se sube el número
+  const CLAVE = "fr_demo_v4";   // al cambiar los datos de ejemplo se sube el número
   const dia = 864e5;
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
@@ -34,7 +34,12 @@ const API = (function () {
       // las de la jornada 2 salen todas de la convocatoria de ejemplo de abajo
       { jornada_id: 2, participante_id: 2, picks: [1, 9, 6, 7, 10, 11, 12, 13, 15, 21, 20] },
       { jornada_id: 2, participante_id: 5, picks: [1, 4, 6, 3, 10, 11, 12, 15, 16, 21, 22] }
-    ].map(a => ({ ...a, actualizada_en: new Date(Date.now() - dia).toISOString() }));
+    ].map((a, i) => {
+      // se envían el día antes, y un par de ellas se retocan más tarde
+      const enviada = new Date(Date.now() - dia - i * 36e5);
+      const retoque = i % 3 === 0 ? new Date(+enviada + 5 * 36e5) : enviada;
+      return { ...a, enviada_en: enviada.toISOString(), actualizada_en: retoque.toISOString() };
+    });
 
     // Convocatoria de ejemplo del próximo partido: la plantilla entera menos
     // Marcao (8), Manuel Ángel (14) y Alfon (18), que se quedan fuera.
@@ -88,6 +93,7 @@ const API = (function () {
         picks: (cerr || p.id === yo) && a ? a.picks : null,
         aciertos: ac,
         puntos: j.once_oficial ? (a ? puntos(ac) : 0) : null,
+        enviada_en: (cerr || p.id === yo) && a ? (a.enviada_en || a.actualizada_en) : null,
         actualizada_en: (cerr || p.id === yo) && a ? a.actualizada_en : null
       };
     }).sort((x, y) => (y.puntos || 0) - (x.puntos || 0) || x.nombre.localeCompare(y.nombre));
@@ -106,6 +112,7 @@ const API = (function () {
           cierre: cierreEf(j).toISOString(), prorrogada: Boolean(j.prorroga_hasta),
           cerrada: cerrada(j), es_proxima: j.id === proxima()?.id,
           convocatoria: j.convocatoria || null,
+          tiene_propuesta: Boolean(j.once_propuesto),
           publicada: Boolean(j.once_oficial)
         })),
         sesion: s ? { participante_id: s.participante_id, es_admin: Boolean(s.es_admin),
@@ -142,7 +149,8 @@ const API = (function () {
       const a = alin(j.id, s.participante_id);
       const ahora = new Date().toISOString();
       if (a) { a.picks = p_picks; a.actualizada_en = ahora; }
-      else db.alineaciones.push({ jornada_id: j.id, participante_id: s.participante_id, picks: p_picks, actualizada_en: ahora });
+      else db.alineaciones.push({ jornada_id: j.id, participante_id: s.participante_id, picks: p_picks,
+                                  enviada_en: ahora, actualizada_en: ahora });
       salvar();
       return ok({ guardada_en: ahora });
     },

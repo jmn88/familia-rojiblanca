@@ -23,6 +23,8 @@ const S = {
   convDesde:  null,
   oncePropuesto: null,  // el once que ha leído el robot, a la espera de confirmar
   onceFuente:    null,
+  onceIntento:   null,  // cuándo miró el robot por última vez, y qué encontró
+  onceMotivo:    null,
   adminEditando: null,
   lecturaFoto: null   // lo que ha salido de leer la foto de la convocatoria
 };
@@ -46,6 +48,8 @@ function fmt(iso, opciones) {
 }
 const fechaLarga = iso => fmt(iso, { weekday: "long", day: "numeric", month: "long" });
 const hora       = iso => fmt(iso, { hour: "2-digit", minute: "2-digit" });
+// para las horas de envío: «sáb, 15, 20:26»
+const cuandoCorto = iso => fmt(iso, { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 function jugadores(admin = false) {
   return (admin && S.estadoAdm ? S.estadoAdm : S.estado)?.jugadores || [];
@@ -371,6 +375,13 @@ async function pintarJornada() {
   v.innerHTML = `<div class="tarjeta"><label for="sel-jornada">Jornada</label>${selector}</div>` + cuerpo;
 }
 
+// ¿la retocó después de enviarla? Se deja un minuto de margen, que guardar
+// tarda su poco y no es lo mismo una corrección que el propio envío.
+function retocada(f) {
+  return f.enviada_en && f.actualizada_en
+    && new Date(f.actualizada_en) - new Date(f.enviada_en) > 60000;
+}
+
 function onces(filas, oficial, yo) {
   const conAlineacion = filas.filter(f => f.picks);
   if (!conAlineacion.length) return "";
@@ -378,6 +389,8 @@ function onces(filas, oficial, yo) {
     ${conAlineacion.map(f => `<div class="bloque-jugador">
       <strong>${esc(f.nombre)}</strong>${f.participante_id === yo ? " (tú)" : ""}
       ${oficial ? ` — <span class="puntos-dia">${f.puntos} puntos</span> con ${f.aciertos} aciertos` : ""}
+      ${f.enviada_en ? `<div class="cuando">Enviada el ${cuandoCorto(f.enviada_en)}${
+        retocada(f) ? ` · último cambio el ${cuandoCorto(f.actualizada_en)}` : " · sin cambios después"}</div>` : ""}
       <ul class="once-lista">${f.picks.map(id =>
         `<li class="${oficial ? (oficial.includes(id) ? "acierto" : "fallo") : ""}">${esc(nombreJug(id))}</li>`).join("")}</ul>
     </div>`).join("")}
@@ -467,10 +480,18 @@ async function pintarAdmin() {
   const convGuardada = convocatoriaDe(S.convJornada);    // la de la tarjeta Convocatoria
   const convDelOnce  = convocatoriaDe(S.adminJornada);   // la de la jornada del once
 
+  // El robot vigila el once desde hora y media antes del partido. Si a 45
+  // minutos no ha aparecido, hay que ir marcandolo a mano: se avisa aquí.
+  const enApuros = js.find(j => !j.publicada && !j.tiene_propuesta
+    && +ahora() > +new Date(j.kickoff) - 45 * 6e4
+    && +ahora() < +new Date(j.kickoff) + 3 * 36e5);
+
   v.innerHTML = `
   <div class="tarjeta">
     <h2>Jornadas</h2>
     <p>El cierre se calcula solo: una hora antes del inicio.</p>
+    ${enApuros ? aviso(`El once de la jornada ${enApuros.numero} sigue sin aparecer y el partido empieza a las ${hora(enApuros.kickoff)}. `
+      + `El robot lo busca cada cinco minutos en la web del club, pero ve marcándolo tú abajo en cuanto lo sepas: hasta que no haya once oficial no se reparten puntos.`, "error") : ""}
     ${prox && sinHora(prox) ? aviso(`El próximo partido es la jornada ${prox.numero} y su hora todavía es orientativa. En cuanto LaLiga publique la definitiva, pulsa Editar en esa fila, corrige el día y la hora y marca «hora oficial»: el cierre se recalcula solo.`) : ""}
     <div class="tabla-scroll"><table>
       <thead><tr><th>J</th><th>Partido</th><th>Cierre</th><th>Estado</th><th></th></tr></thead>
@@ -552,6 +573,7 @@ async function pintarAdmin() {
         <button class="menor" id="btn-usar-propuesta">Usar esta propuesta</button>
         ${S.onceFuente ? `<a class="cuando" href="${esc(S.onceFuente)}" target="_blank" rel="noopener">Ver la noticia</a>` : ""}
       </p></div>` : ""}
+    ${!S.oncePropuesto && S.onceIntento ? `<p class="cuando">El robot miró por última vez a las ${hora(S.onceIntento)}${S.onceMotivo ? `: ${esc(S.onceMotivo)}` : "."}</p>` : ""}
     ${campoHTML(S.adminOnce)}
     <p style="margin:14px 0 0"><span class="contador ${S.adminOnce.length === 11 ? "completo" : ""}">${S.adminOnce.length}/11</span> titulares</p>
     ${convDelOnce ? `<p class="cuando">En gris, los que no estaban convocados. Si jugó alguno, corrige antes la convocatoria.</p>` : ""}
@@ -676,6 +698,8 @@ async function cargarOnceAdmin() {
     S.adminOnce     = d.jornada.once_oficial || [];
     S.oncePropuesto = d.jornada.once_propuesto || null;
     S.onceFuente    = d.jornada.once_propuesto_fuente || null;
+    S.onceIntento   = d.jornada.once_robot_intento || null;
+    S.onceMotivo    = d.jornada.once_robot_motivo || null;
   }
   await pintarAdmin();
 }

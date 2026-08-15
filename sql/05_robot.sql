@@ -24,7 +24,7 @@ set search_path = public, extensions, pg_temp as $$
         from jornadas
        where convocatoria is null                                   -- aun sin cargar
          and now() < f_cierre_efectivo(cierre, prorroga_hasta)      -- y con el plazo abierto
-         and kickoff < now() + interval '3 days'                    -- solo el partido que viene
+         and kickoff < now() + interval '1 day'                     -- desde el dia antes del partido
        order by numero
        limit 1),
     'plantilla', (
@@ -90,8 +90,10 @@ set search_path = public, extensions, pg_temp as $$
         from jornadas
        where once_oficial is null                       -- aun sin puntuar
          and once_propuesto is null                     -- y sin propuesta esperando
-         and now() > kickoff - interval '2 hours'       -- el once sale poco antes
-         and now() < kickoff + interval '3 days'
+         -- se vigila desde hora y media antes hasta que aparezca; si a las tres
+         -- horas del inicio no ha salido, no va a salir y se marca a mano
+         and now() > kickoff - interval '90 minutes'
+         and now() < kickoff + interval '3 hours'
        order by numero
        limit 1),
     'plantilla', (
@@ -131,6 +133,21 @@ begin
   return json_build_object('ok', true, 'jornada', j.numero, 'propuesto', true);
 end $$;
 
+-- Deja constancia de cada intento fallido, para que en Admin se pueda ver si el
+-- robot esta mirando y que se ha encontrado. Sin esto, cuando no aparece el once
+-- no hay forma de saber si es que el club no lo ha publicado o es que el robot
+-- ni siquiera se ha puesto en marcha.
+create or replace function robot_once_nota(p_jornada int, p_motivo text)
+returns json language plpgsql security definer
+set search_path = public, extensions, pg_temp as $$
+begin
+  update jornadas
+     set once_robot_intento = now(),
+         once_robot_motivo  = left(coalesce(p_motivo, ''), 300)
+   where id = p_jornada and once_oficial is null;
+  return json_build_object('ok', true);
+end $$;
+
 -- Con la clave publica de la web no se llega a ninguna de estas: solo desde el proceso
 -- de GitHub, que entra con la cadena de conexion completa.
 --
@@ -142,6 +159,7 @@ revoke execute on function robot_pendiente()                    from public, ano
 revoke execute on function robot_convocatoria(int, int[], text) from public, anon, authenticated;
 revoke execute on function robot_pendiente_once()               from public, anon, authenticated;
 revoke execute on function robot_once(int, int[], text)         from public, anon, authenticated;
+revoke execute on function robot_once_nota(int, text)           from public, anon, authenticated;
 
 -- Y se comprueba aqui mismo, que esto no puede quedarse a medias sin que nadie
 -- se entere: si alguna siguiera abierta al rol anonimo, el script falla y el
