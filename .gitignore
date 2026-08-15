@@ -1,0 +1,3 @@
+# restos que deja Python al ejecutar el robot
+__pycache__/
+*.pyc
