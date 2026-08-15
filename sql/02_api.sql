@@ -264,6 +264,7 @@ begin
       'convocatoria', j.convocatoria, 'convocatoria_en', j.convocatoria_en,
       'convocatoria_fuente', j.convocatoria_fuente,
       'once_oficial', j.once_oficial,
+      'once_propuesto', j.once_propuesto, 'once_propuesto_fuente', j.once_propuesto_fuente,
       'publicada', j.once_oficial is not null, 'publicada_en', j.publicada_en),
     'filas', v_filas);
 end $$;
@@ -482,7 +483,11 @@ begin
       'El once oficial tiene jugadores que no estaban convocados. Corrige antes la convocatoria.');
   end if;
 
-  update jornadas set once_oficial = p_picks, publicada_en = now() where id = p_jornada;
+  -- decide una persona: la propuesta del robot ya ha cumplido su papel
+  update jornadas set once_oficial = p_picks, publicada_en = now(),
+                      once_propuesto = null, once_propuesto_en = null,
+                      once_propuesto_fuente = null
+   where id = p_jornada;
   return json_build_object('ok', true, 'publicada', true);
 end $$;
 

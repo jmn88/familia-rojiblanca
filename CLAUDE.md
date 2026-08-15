@@ -69,6 +69,15 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   queda como respaldo.
   **Leer los tuits de @SevillaFC se descartó**: desde febrero de 2026 X cobra por
   publicación leída. No lo replantees sin que el usuario lo pida.
+- **El once inicial el robot lo PROPONE, no lo publica.** Sale de la noticia «en
+  directo» del partido, donde el club escribe «¡CONFIRMADO EL ONCE DEL SEVILLA
+  FC! … sale con Odysseas; Iglesias, …». Se guarda en `once_propuesto` y el
+  administrador lo confirma desde Admin con «Usar esta propuesta» + Guardar.
+  Decisión del usuario, y con motivo: el once reparte los puntos, así que de eso
+  responde una persona. **No lo conviertas en automático.**
+  Ojo al buscar en el HTML del club: el once va en MAYÚSCULAS y hay cadenas de
+  la tienda («LINEUP: Alineaciones») que despistan si buscas «once» en
+  minúsculas — ese error ya se cometió una vez.
 - **La foto se interpreta por coordenadas, no por el texto leído.** El cartel va
   a dos columnas y el lector las devuelve pegadas en un renglón («1 ODYSSEAS 17
   SUAZO»); además la fuente del club (Montecatini Pro) deforma las cifras — el
@@ -124,7 +133,9 @@ app/api.js            llamadas RPC a la base de datos
 app/demo.js           base de datos falsa, solo para demo.html
 app/convocatoria.js   lee la foto de la convocatoria (imagen -> lista de jugadores)
 app/app.js            toda la lógica de la interfaz
+robot/comun.py        pedir páginas del club y casar nombres con la plantilla
 robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
+robot/once.py         busca el once inicial y lo deja PROPUESTO, sin publicar
 css/estilos.css
 sql/01_esquema.sql    tablas y cierre de permisos
 sql/02_api.sql        funciones (PIN, cierre, puntuación, admin)

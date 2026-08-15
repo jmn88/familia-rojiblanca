@@ -75,7 +75,63 @@ begin
   return json_build_object('ok', true, 'jugadores', v_total, 'jornada', j.numero);
 end $$;
 
--- Con la clave publica de la web no se llega a estas dos: solo desde el proceso
+-- ------------------------------------------------------- el once inicial ---
+-- Aqui el robot NO decide: propone. El once oficial es lo que reparte los
+-- puntos, asi que lo confirma el administrador desde Admin, de un toque.
+
+create or replace function robot_pendiente_once()
+returns json language sql stable security definer
+set search_path = public, extensions, pg_temp as $$
+  select json_build_object(
+    'ahora', now(),
+    'jornada', (
+      select json_build_object('id', id, 'numero', numero, 'rival', rival,
+                               'en_casa', en_casa, 'kickoff', kickoff)
+        from jornadas
+       where once_oficial is null                       -- aun sin puntuar
+         and once_propuesto is null                     -- y sin propuesta esperando
+         and now() > kickoff - interval '2 hours'       -- el once sale poco antes
+         and now() < kickoff + interval '3 days'
+       order by numero
+       limit 1),
+    'plantilla', (
+      select coalesce(json_agg(json_build_object('id', id, 'nombre', nombre, 'dorsal', dorsal)
+                    order by id), '[]'::json)
+        from jugadores where activo)
+  )
+$$;
+
+create or replace function robot_once(p_jornada int, p_jugadores int[], p_fuente text)
+returns json language plpgsql security definer
+set search_path = public, extensions, pg_temp as $$
+declare j jornadas; n int;
+begin
+  select * into j from jornadas where id = p_jornada;
+  if not found then return json_build_object('ok', false, 'error', 'Jornada no encontrada'); end if;
+
+  if j.once_oficial is not null then
+    return json_build_object('ok', false, 'error', 'Esa jornada ya tiene once oficial: no se toca');
+  end if;
+  if j.once_propuesto is not null then
+    return json_build_object('ok', false, 'error', 'Ya habia una propuesta esperando');
+  end if;
+
+  if coalesce(array_length(p_jugadores, 1), 0) <> 11 then
+    return json_build_object('ok', false, 'error', 'El once son 11 jugadores');
+  end if;
+  select count(distinct x) into n from unnest(p_jugadores) x;
+  if n <> 11 then return json_build_object('ok', false, 'error', 'Hay jugadores repetidos'); end if;
+  select count(*) into n from jugadores where id = any(p_jugadores);
+  if n <> 11 then return json_build_object('ok', false, 'error', 'Algun jugador no existe'); end if;
+
+  update jornadas
+     set once_propuesto = p_jugadores, once_propuesto_en = now(), once_propuesto_fuente = p_fuente
+   where id = p_jornada;
+
+  return json_build_object('ok', true, 'jornada', j.numero, 'propuesto', true);
+end $$;
+
+-- Con la clave publica de la web no se llega a ninguna de estas: solo desde el proceso
 -- de GitHub, que entra con la cadena de conexion completa.
 --
 -- OJO con el orden y con PUBLIC: PostgreSQL da permiso de ejecucion a PUBLIC en
@@ -84,6 +140,8 @@ end $$;
 -- Hay que retirarselo tambien a PUBLIC.
 revoke execute on function robot_pendiente()                    from public, anon, authenticated;
 revoke execute on function robot_convocatoria(int, int[], text) from public, anon, authenticated;
+revoke execute on function robot_pendiente_once()               from public, anon, authenticated;
+revoke execute on function robot_once(int, int[], text)         from public, anon, authenticated;
 
 -- Y se comprueba aqui mismo, que esto no puede quedarse a medias sin que nadie
 -- se entere: si alguna siguiera abierta al rol anonimo, el script falla y el

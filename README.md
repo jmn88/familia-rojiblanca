@@ -171,8 +171,28 @@ Los nombres no coinciden exactamente con los de la plantilla («Juan Iglesias» 
 canteranos que no estén dados de alta se quedan fuera y se anotan en el registro
 del proceso; si quieres que puedan alinearse, añádelos desde Admin.
 
-Para lanzarlo a mano en cualquier momento: pestaña **Actions → Cargar la
-convocatoria → Run workflow**.
+## El once inicial: te lo deja propuesto, tú lo confirmas
+
+El mismo proceso busca también el once. Cuando se confirma la alineación, el club
+lo escribe en la noticia **en directo** del partido:
+
+> **20:10 | ¡CONFIRMADO EL ONCE DEL SEVILLA FC!**
+> Luis García Plaza sale con Odysseas; Iglesias, Sangante, Kike Salas, Suazo;
+> Agoumé, Nico Guillén, Guridi; Miguel Sierra, Oso e Isaac.
+
+De ahí saca los once nombres. Pero **no los publica**: los deja como propuesta.
+En **Admin → Once inicial** te aparece un recuadro con la alineación leída y un
+botón *Usar esta propuesta*, que la coloca sobre el campo; la repasas y le das a
+*Guardar once oficial*. **Hasta que no la guardas tú no se puntúa nada.**
+
+Es a propósito: el once es lo que reparte los puntos, así que de eso responde una
+persona y no un robot. Confirmarlo son dos toques.
+
+Si algo no cuadra —que lean diez nombres, o uno que no está en la plantilla— no
+propone nada y lo anota en su registro. Tú lo marcas a mano como siempre.
+
+Para lanzarlo a mano en cualquier momento: pestaña **Actions → Cargar
+convocatoria y once → Run workflow**.
 
 > ¿Y por qué no se leen los tuits de @SevillaFC? Porque desde febrero de 2026 X
 > cobra por leer publicaciones y habría que darle una tarjeta. La web del club da
@@ -232,7 +252,9 @@ app/api.js            llamadas a la base de datos
 app/demo.js           base de datos de mentira, solo para demo.html
 app/convocatoria.js   lee la foto de la convocatoria y la cruza con la plantilla
 app/app.js            lógica de la interfaz
+robot/comun.py        lo que comparten los dos robots (pedir páginas, casar nombres)
 robot/convocatoria.py busca la convocatoria en la web del club (lo usa GitHub)
+robot/once.py         busca el once inicial y lo deja propuesto
 css/estilos.css
 sql/01_esquema.sql    tablas
 sql/02_api.sql        funciones (seguridad, cierre, puntuación)

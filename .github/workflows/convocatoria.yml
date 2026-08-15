@@ -13,7 +13,7 @@
 #
 # Para lanzarlo a mano: pestaña Actions -> Cargar la convocatoria -> Run workflow.
 
-name: Cargar la convocatoria
+name: Cargar convocatoria y once
 
 on:
   schedule:
@@ -75,4 +75,47 @@ jobs:
             echo ""
             echo "Nombres de la noticia que no estan en la plantilla (canteranos, casi siempre):"
             echo "$RESULTADO" | python3 -c "import json,sys; [print('- '+n) for n in json.load(sys.stdin)['sueltos']] or print('- ninguno')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # El once NO se publica: se deja propuesto y lo confirma el administrador
+      # desde Admin, porque es lo que reparte los puntos.
+      - name: Buscar el once inicial y dejarlo propuesto
+        if: always()
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_pendiente_once();" > pendiente-once.json
+
+          RESULTADO=$(python3 robot/once.py < pendiente-once.json)
+          echo "$RESULTADO"
+
+          leer() { echo "$RESULTADO" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('$1',''))"; }
+
+          if [ "$(leer ok)" != "True" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Once inicial: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          JORNADA=$(leer jornada_id)
+          FUENTE=$(leer fuente)
+          IDS=$(echo "$RESULTADO" | python3 -c "import json,sys; print('{'+','.join(str(i) for i in json.load(sys.stdin)['ids'])+'}')")
+
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A \
+               -v jornada="$JORNADA" -v ids="$IDS" -v fuente="$FUENTE" \
+               -c "select robot_once(:'jornada'::int, :'ids'::int[], :'fuente');" \
+               | tee once.json
+
+          {
+            echo ""
+            echo "## Once propuesto para la jornada $(leer jornada)"
+            echo ""
+            echo "Fuente: $FUENTE"
+            echo ""
+            echo "Respuesta de la base de datos: \`$(cat once.json)\`"
+            echo ""
+            echo "**Falta confirmarlo desde Admin**: hasta entonces no se puntua nada."
+            echo "$RESULTADO" | python3 -c "import json,sys; [print('- '+c['nombre']) for c in json.load(sys.stdin)['casados']]"
           } >> "$GITHUB_STEP_SUMMARY"

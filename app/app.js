@@ -21,6 +21,8 @@ const S = {
   convCargada: null,
   convFuente: null,   // de dónde salió la convocatoria guardada (null = a mano)
   convDesde:  null,
+  oncePropuesto: null,  // el once que ha leído el robot, a la espera de confirmar
+  onceFuente:    null,
   adminEditando: null,
   lecturaFoto: null   // lo que ha salido de leer la foto de la convocatoria
 };
@@ -542,6 +544,14 @@ async function pintarAdmin() {
     <label for="adm-sel-jornada">Jornada</label>
     <select id="adm-sel-jornada">${js.map(j =>
       `<option value="${j.id}" ${j.id === S.adminJornada ? "selected" : ""}>Jornada ${j.numero} · ${rotulo(j)}${j.publicada ? " ✓" : ""}</option>`).join("")}</select>
+    ${S.oncePropuesto && S.oncePropuesto.length ? `<div class="aviso">
+      <b>El robot ha leído este once en la web del club.</b> Repásalo y, si está bien, dale a
+      «Usar esta propuesta» y luego a guardar. No se puntúa nada hasta que lo guardes tú.
+      <ul class="once-lista">${S.oncePropuesto.map(id => `<li>${esc(nombreJug(id))}</li>`).join("")}</ul>
+      <p style="margin:10px 0 0">
+        <button class="menor" id="btn-usar-propuesta">Usar esta propuesta</button>
+        ${S.onceFuente ? `<a class="cuando" href="${esc(S.onceFuente)}" target="_blank" rel="noopener">Ver la noticia</a>` : ""}
+      </p></div>` : ""}
     ${campoHTML(S.adminOnce)}
     <p style="margin:14px 0 0"><span class="contador ${S.adminOnce.length === 11 ? "completo" : ""}">${S.adminOnce.length}/11</span> titulares</p>
     ${convDelOnce ? `<p class="cuando">En gris, los que no estaban convocados. Si jugó alguno, corrige antes la convocatoria.</p>` : ""}
@@ -662,7 +672,11 @@ async function cargarOnceAdmin() {
   if (!S.adminJornada) return;
   S.onceCargado = S.adminJornada;
   const d = await API.rpc("api_jornada", { p_jornada: S.adminJornada, p_token: S.adminToken });
-  if (d.ok) S.adminOnce = d.jornada.once_oficial || [];
+  if (d.ok) {
+    S.adminOnce     = d.jornada.once_oficial || [];
+    S.oncePropuesto = d.jornada.once_propuesto || null;
+    S.onceFuente    = d.jornada.once_propuesto_fuente || null;
+  }
   await pintarAdmin();
 }
 
@@ -851,10 +865,16 @@ document.addEventListener("click", async ev => {
       return;
     }
 
+    if (t.id === "btn-usar-propuesta") {
+      S.adminOnce = [...S.oncePropuesto];
+      await pintarAdmin();
+      $("#msg-once").innerHTML = aviso("Once cargado en el campo. Repásalo y dale a «Guardar once oficial» para que cuente.");
+      return;
+    }
     if (t.id === "btn-once") {
       const r = await accionAdmin("api_admin_once",
         { p_jornada: S.adminJornada, p_picks: S.adminOnce }, "#msg-once", "Once oficial guardado. Ya están calculadas las puntuaciones.");
-      if (r) await cargarEstado();
+      if (r) { S.oncePropuesto = null; S.onceFuente = null; await cargarEstado(); }
       return;
     }
     if (t.id === "btn-despublicar") {
@@ -908,6 +928,8 @@ document.addEventListener("change", async ev => {
   if (ev.target.id === "adm-sel-jornada") {
     S.adminJornada = Number(ev.target.value);
     S.adminOnce = [];
+    S.oncePropuesto = null;
+    S.onceFuente = null;
     S.onceCargado = null;
     await pintarAdmin();
   }

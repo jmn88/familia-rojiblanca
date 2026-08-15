@@ -49,6 +49,13 @@ alter table jornadas add column if not exists convocatoria_en     timestamptz;
 -- de donde salio: null = a mano, o la direccion de la noticia si la cargo el robot
 alter table jornadas add column if not exists convocatoria_fuente text;
 
+-- El once que ha leido el robot en la web del club. NO es el once oficial: es
+-- una propuesta esperando a que el administrador la confirme, porque de ahi
+-- salen los puntos.
+alter table jornadas add column if not exists once_propuesto        int[];
+alter table jornadas add column if not exists once_propuesto_en     timestamptz;
+alter table jornadas add column if not exists once_propuesto_fuente text;
+
 do $$ begin
   alter table jornadas add constraint convocatoria_min
     check (convocatoria is null or array_length(convocatoria,1) >= 11);
