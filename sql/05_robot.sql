@@ -77,5 +77,29 @@ end $$;
 
 -- Con la clave publica de la web no se llega a estas dos: solo desde el proceso
 -- de GitHub, que entra con la cadena de conexion completa.
-revoke execute on function robot_pendiente()                     from anon, authenticated;
-revoke execute on function robot_convocatoria(int, int[], text)  from anon, authenticated;
+--
+-- OJO con el orden y con PUBLIC: PostgreSQL da permiso de ejecucion a PUBLIC en
+-- cada funcion nueva, y anon lo hereda. Quitarselo solo a anon NO sirve de nada
+-- (comprobado en vivo: se podian llamar desde la web con la clave publica).
+-- Hay que retirarselo tambien a PUBLIC.
+revoke execute on function robot_pendiente()                    from public, anon, authenticated;
+revoke execute on function robot_convocatoria(int, int[], text) from public, anon, authenticated;
+
+-- Y se comprueba aqui mismo, que esto no puede quedarse a medias sin que nadie
+-- se entere: si alguna siguiera abierta al rol anonimo, el script falla y el
+-- proceso de GitHub lo canta en rojo.
+do $$
+declare v_abiertas text;
+begin
+  select string_agg(p.proname, ', ') into v_abiertas
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname like 'robot\_%'
+     and (has_function_privilege('anon', p.oid, 'execute')
+          or has_function_privilege('authenticated', p.oid, 'execute'));
+
+  if v_abiertas is not null then
+    raise exception 'Las funciones del robot siguen abiertas al rol anonimo: %', v_abiertas;
+  end if;
+end $$;
