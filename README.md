@@ -160,7 +160,9 @@ y el apellido de cada jugador. La web la lee sola:
    plantilla**: cada uno trae un botón *Añadir a la plantilla* que los da de
    alta y los deja convocados. Si lo que hay es una errata de lectura, a veces
    propone el jugador parecido («¿Es Oso?») para arreglarlo de un toque.
-4. **Repasa la lista** contra la foto: un toque quita o pone a cualquiera.
+4. **Repasa la lista** contra la foto: un toque quita o pone a cualquiera. Para
+   que nada se quede escondido, debajo tienes también **quién se queda sin
+   convocar** — si ves ahí a alguien que sí estaba en la foto, márcalo y listo.
 5. **Guardar convocatoria.**
 
 A partir de ahí, en «Mi alineación» los no convocados salen tachados y no se

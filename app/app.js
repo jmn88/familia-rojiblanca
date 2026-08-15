@@ -623,19 +623,29 @@ function lecturaHTML() {
       `<li><b>${d.dorsal ?? "·"}</b> ${esc(d.nombre)}</li>`).join("")}</ul>` : ""}
 
     ${sueltas.length ? `<h3>Sin reconocer</h3>
-      <p class="cuando">Aparecen en la foto pero no están en la plantilla. Suelen ser canteranos: añádelos y quedan convocados. Si es un fallo de lectura, no hagas nada.</p>
+      <p class="cuando">Líneas de la foto que no ha sabido casar con la plantilla: canteranos que aún no están dados de alta, o nombres que ha leído mal. Añade a los que falten y confirma los que te proponga; si es un borrón, déjalo.</p>
       <div class="tabla-scroll"><table><tbody>
         ${sueltas.map((x, i) => `<tr>
           <td class="num">${x.dorsal ?? "·"}</td>
-          <td>${esc(x.nombre)}</td>
+          <td>${x.nombre ? esc(x.nombre) : `<span class="no-participo">nombre ilegible</span>`}</td>
           <td>${x.sugerencia
             ? `<button class="menor" data-conv-es="${x.sugerencia.id}" data-linea="${i}">¿Es ${esc(x.sugerencia.nombre)}?</button>`
             : ""}</td>
-          <td><select class="conv-pos">${POSICIONES.map(([c, t]) =>
+          ${x.nombre ? `<td><select class="conv-pos">${POSICIONES.map(([c, t]) =>
                 `<option value="${c}" ${c === "MED" ? "selected" : ""}>${t.slice(0, -1)}</option>`).join("")}</select></td>
-          <td><button class="menor" data-conv-alta="${i}">Añadir a la plantilla</button></td>
+          <td><button class="menor" data-conv-alta="${i}">Añadir a la plantilla</button></td>`
+          : `<td colspan="2"></td>`}
         </tr>`).join("")}
       </tbody></table></div>` : ""}
+
+    ${(() => {
+      // Nada puede quedarse invisible: quien no se haya marcado, se enseña aquí.
+      const sinMarcar = jugadores(true).filter(g => g.activo !== false && !S.adminConv.includes(g.id));
+      return sinMarcar.length ? `<h3>Se quedan sin convocar (${sinMarcar.length})</h3>
+        <p class="cuando">Repásalos contra la foto: si alguno debería estar, márcalo abajo.</p>
+        <ul class="once-lista">${sinMarcar.map(g =>
+          `<li><b>${g.dorsal ?? "·"}</b> ${esc(g.nombre)}</li>`).join("")}</ul>` : "";
+    })()}
 
     <details class="desglose"><summary>Ver el texto que ha leído</summary>
       <pre class="texto-leido">${esc(L.texto)}</pre></details>`;

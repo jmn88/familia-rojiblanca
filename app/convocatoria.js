@@ -16,9 +16,8 @@
 
 const CONVOCATORIA = (function () {
 
-  const LECTOR   = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-  const ANCHO    = 1600;   // a la imagen pequeña se le sacan pocas letras: se agranda
-  const SUFICIENTE = 14;   // menos convocados que esto: merece la pena una segunda pasada
+  const LECTOR = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+  const ANCHO  = 1600;   // a la imagen pequeña se le sacan pocas letras: se agranda
 
   /* ------------------------------------------------- descarga del lector --- */
 
@@ -183,12 +182,37 @@ const CONVOCATORIA = (function () {
   /* Recorre el texto y va formando fichas «dorsal + palabras». Sirve tanto si
      cada jugador cae en su línea como si el lector junta las dos columnas en
      una sola («1 ODYSSEAS 17 SUAZO»): cada cifra abre una ficha nueva. */
+  /* El cartel del club separa mucho las letras, y entonces el lector devuelve
+     «E J U K E» en vez de «EJUKE». Antes de nada se vuelven a pegar las letras
+     sueltas seguidas: si no, cada una parecería basura y el jugador entero se
+     perdía sin dejar rastro. Una inicial suelta («A.» de A. Castrín) se queda
+     como estaba, porque va pegada a una palabra de verdad. */
+  function pegarSueltas(trozos) {
+    const salida = [];
+    let sueltas = [];
+    const vaciar = () => {
+      if (sueltas.length) salida.push(sueltas.join(""));
+      sueltas = [];
+    };
+    trozos.forEach(t => {
+      if (/^[A-Za-zÀ-ÿ]$/.test(t)) sueltas.push(t);
+      else { vaciar(); salida.push(t); }
+    });
+    vaciar();
+    return salida;
+  }
+
   function candidatos(texto) {
     const fichas = [];
     texto.split(/\r?\n/).forEach(linea => {
-      const trozos = linea.trim().split(/[\s·•.,;:_]+/).filter(Boolean);
+      const trozos = pegarSueltas(linea.trim().split(/[\s·•.,;:_]+/).filter(Boolean));
       let ficha = null;
-      const cerrar = () => { if (ficha && ficha.palabras.length) fichas.push(ficha); ficha = null; };
+      // Una ficha con dorsal se guarda aunque no se le haya sacado el nombre:
+      // asi al menos sale en la lista de dudosos y se resuelve de un toque.
+      const cerrar = () => {
+        if (ficha && (ficha.palabras.length || ficha.dorsal != null)) fichas.push(ficha);
+        ficha = null;
+      };
 
       trozos.forEach((trozo, i) => {
         const dorsal = comoDorsal(trozo, i === 0);
@@ -268,8 +292,11 @@ const CONVOCATORIA = (function () {
     return Math.max(entero, peso ? acertado / peso : 0);
   }
 
-  const ACIERTO   = 0.6;    // a partir de aquí se da por bueno
-  const SUGERENCIA = 0.3;   // a partir de aquí se propone, pero decide el admin
+  const ACIERTO    = 0.6;   // a partir de aquí se da por bueno
+  // A partir de aquí se propone («¿es este?»), pero decide el administrador. Con
+  // el listón más bajo salían disparates —proponer Alfon para un «Carmona» que
+  // ya estaba cogido— y una sugerencia absurda estorba más que ayuda.
+  const SUGERENCIA = 0.45;
 
   function nota(ficha, jugador) {
     let n = parecido(ficha.palabras.join(" "), jugador.nombre) * 0.7;
@@ -305,21 +332,45 @@ const CONVOCATORIA = (function () {
       }
     });
 
-    const sinReconocer = [];
+    /* Como se leen las dos veces, el mismo jugador aparece por duplicado: en una
+       pasada entero y en la otra a cachos (el dorsal por un lado y el nombre por
+       otro). Lo que ya esta contado no se vuelve a sacar, o la lista de dudosos
+       se llena de ruido y esconde lo que de verdad hay que mirar. */
+    const dorsalContado = new Set(detalles.map(d => d.dorsal).filter(d => d != null));
+    const yaContado = ficha => {
+      if (ficha.dorsal != null && dorsalContado.has(ficha.dorsal)) return true;
+      const leido = ficha.palabras.join(" ");
+      return Boolean(leido) && detalles.some(d => parecido(leido, d.nombre) >= 0.8);
+    };
+
+    // una entrada por dorsal (o por nombre, si no se leyo el dorsal); entre dos
+    // lecturas del mismo, se queda la que trae nombre
+    const sueltas = new Map();
     fichas.forEach((ficha, i) => {
-      if (fichaUsada.has(i)) return;
+      if (fichaUsada.has(i) || yaContado(ficha)) return;
       const nombre = capitalizar(ficha.palabras.join(" "));
-      if (!nombre) return;
-      const propuesta = sugerencias.get(i);
+      let propuesta = sugerencias.get(i);
+      // Del nombre no se ha sacado nada, pero el dorsal se ha leido limpio: es
+      // pista de sobra para proponer al que lo lleva, que ya confirmara el admin.
+      if (!propuesta && !nombre && ficha.dorsal != null) {
+        propuesta = plantilla.find(j => j.dorsal === ficha.dorsal);
+      }
       // Sin dorsal y sin parecerse a nadie no hay nada que ofrecer: es el titulo
       // del cartel, el nombre del rival o un borron. No se enseña.
       if (ficha.dorsal == null && !propuesta) return;
-      sinReconocer.push({
+
+      const entrada = {
         dorsal: ficha.dorsal,
         nombre,
         sugerencia: propuesta && !jugadorUsado.has(propuesta.id) ? propuesta : null
-      });
+      };
+      const clave = ficha.dorsal != null ? `d${ficha.dorsal}` : `n${normal(nombre)}`;
+      const previa = sueltas.get(clave);
+      if (!previa || (!previa.nombre && entrada.nombre)) sueltas.set(clave, entrada);
     });
+
+    const sinReconocer = [...sueltas.values()]
+      .sort((a, b) => (a.dorsal ?? 999) - (b.dorsal ?? 999));
 
     return { detalles, sinReconocer };
   }
@@ -364,18 +415,16 @@ const CONVOCATORIA = (function () {
     const trabajador = await abrirTrabajador(alProgreso);
 
     try {
-      let texto  = await leer(trabajador, lienzo, 6);
-      let fichas = candidatos(texto);
-      let r      = emparejar(fichas, plantilla);
-
-      // Con dos columnas el primer modo a veces se deja media lista: se prueba
-      // el otro y se juntan las dos lecturas, que solo puede sumar.
-      if (r.detalles.length < SUFICIENTE) {
-        const otro = await leer(trabajador, lienzo, 11);
-        texto  = `${texto}\n${otro}`;
-        fichas = juntar(fichas, candidatos(otro));
-        r      = emparejar(fichas, plantilla);
-      }
+      // Siempre las dos lecturas, y se juntan. Antes la segunda solo se hacía si
+      // la primera había sacado poca gente, y así se quedaban fuera para siempre
+      // los dos o tres que a esa primera se le hubieran escapado. Tarda algo más
+      // y merece la pena: juntarlas solo puede sumar, porque de aquí no sale
+      // nada guardado sin que el administrador lo repase.
+      const uno = await leer(trabajador, lienzo, 6);
+      const dos = await leer(trabajador, lienzo, 11);
+      const texto  = `${uno}\n${dos}`;
+      const fichas = juntar(candidatos(uno), candidatos(dos));
+      const r      = emparejar(fichas, plantilla);
 
       return {
         convocados: r.detalles.map(d => d.jugador_id),
