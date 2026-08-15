@@ -1,0 +1,74 @@
+# Deja PROPUESTO el once inicial del Sevilla FC.
+#
+# Desde dos horas antes del partido mira si el club ha confirmado ya la
+# alineacion en la noticia "en directo". Cuando la encuentra, la guarda como
+# propuesta y avisa en el resumen.
+#
+# NO la publica: el once oficial es lo que reparte los puntos, asi que lo
+# confirma el administrador desde Admin ("Usar esta propuesta" y guardar).
+#
+# Va aparte de la convocatoria a proposito: son cosas distintas y en momentos
+# distintos, y asi ninguna arrastra a la otra si falla.
+#
+# Para lanzarlo a mano: pestaña Actions -> Proponer el once inicial -> Run workflow.
+
+name: Proponer el once inicial
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: robot-sevilla
+  cancel-in-progress: false
+
+jobs:
+  proponer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar el cliente de PostgreSQL
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client
+
+      - name: Buscar el once y dejarlo propuesto
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PGCONN:-}" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL. Esta explicado en el README."
+            exit 1
+          fi
+
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_pendiente_once();" > pendiente.json
+
+          python3 robot/once.py < pendiente.json > resultado.json
+          cat resultado.json
+
+          leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
+
+          if [ "$(leer ok)" != "True" ]; then
+            echo "Sin proponer nada: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # La orden se arma en Python, ya escapada: psql no sustituye variables
+          # en las ordenes que se le pasan con -c, y eso hacia fallar esto entero.
+          python3 robot/orden_sql.py once < resultado.json > orden.sql
+          cat orden.sql
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden.sql | tee guardado.txt
+
+          {
+            echo "## Once propuesto para la jornada $(leer jornada)"
+            echo ""
+            echo "Fuente: $(leer fuente)"
+            echo ""
+            echo "Respuesta de la base de datos: \`$(cat guardado.txt)\`"
+            echo ""
+            echo "**Falta confirmarlo desde Admin**: hasta entonces no se puntua nada."
+            echo ""
+            python3 -c "import json; d=json.load(open('resultado.json')); [print('- '+c['nombre']) for c in d['casados']]"
+          } >> "$GITHUB_STEP_SUMMARY"

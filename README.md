@@ -191,8 +191,10 @@ persona y no un robot. Confirmarlo son dos toques.
 Si algo no cuadra —que lean diez nombres, o uno que no está en la plantilla— no
 propone nada y lo anota en su registro. Tú lo marcas a mano como siempre.
 
-Para lanzarlo a mano en cualquier momento: pestaña **Actions → Cargar
-convocatoria y once → Run workflow**.
+Son **dos procesos separados** — *Cargar la convocatoria* y *Proponer el once
+inicial*—, cada uno con su botón *Run workflow* en la pestaña **Actions**. Van
+aparte a propósito: son cosas distintas y en momentos distintos, y así ninguna
+arrastra a la otra si falla.
 
 > ¿Y por qué no se leen los tuits de @SevillaFC? Porque desde febrero de 2026 X
 > cobra por leer publicaciones y habría que darle una tarjeta. La web del club da
@@ -255,6 +257,7 @@ app/app.js            lógica de la interfaz
 robot/comun.py        lo que comparten los dos robots (pedir páginas, casar nombres)
 robot/convocatoria.py busca la convocatoria en la web del club (lo usa GitHub)
 robot/once.py         busca el once inicial y lo deja propuesto
+robot/orden_sql.py    arma la orden de SQL que guarda lo que han encontrado
 css/estilos.css
 sql/01_esquema.sql    tablas
 sql/02_api.sql        funciones (seguridad, cierre, puntuación)

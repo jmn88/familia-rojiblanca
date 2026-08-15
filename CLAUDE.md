@@ -136,6 +136,7 @@ app/app.js            toda la lógica de la interfaz
 robot/comun.py        pedir páginas del club y casar nombres con la plantilla
 robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
 robot/once.py         busca el once inicial y lo deja PROPUESTO, sin publicar
+robot/orden_sql.py    arma la orden de SQL, ya escapada, que guarda el resultado
 css/estilos.css
 sql/01_esquema.sql    tablas y cierre de permisos
 sql/02_api.sql        funciones (PIN, cierre, puntuación, admin)
@@ -157,6 +158,12 @@ cada vez que se sube a `main` un cambio dentro de `sql/`, y también a demanda
 desde Actions. Usa el secret `SUPABASE_DB_URL`, que es la cadena de conexión
 **Session pooler** de Supabase (la conexión directa es solo IPv6 y no llega desde
 GitHub).
+
+**`psql -c` no sustituye las variables de psql.** Una orden como
+`psql -c "select f(:'x')"` se manda tal cual al servidor y revienta con
+`syntax error at or near ":"`. Por eso las órdenes del robot se arman en
+`robot/orden_sql.py`, ya escapadas, y se le dan a psql con `-f`. No lo vuelvas
+a hacer con `-c` y variables.
 
 Consecuencia práctica: **cambiar un fichero de `sql/` y subirlo ya es aplicarlo.**
 Por eso los scripts tienen que seguir siendo repetibles — nada de `insert` sin

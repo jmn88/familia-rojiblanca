@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Convierte lo que ha encontrado un robot en la orden de SQL que lo guarda.
+
+Antes esto se hacia con las variables de psql (`:'jornada'`), y no funcionaba:
+psql NO sustituye variables en las ordenes que se le pasan con -c, se las manda
+al servidor tal cual, y el servidor se atraganta con los dos puntos:
+
+    ERROR:  syntax error at or near ":"
+
+Asi que la orden se arma aqui, entera y ya escapada, y se le da a psql por la
+entrada. Los numeros pasan por int(), de modo que por ahi no puede colarse nada,
+y el texto va con las comillas dobladas, como manda SQL.
+
+    python robot/orden_sql.py once < resultado.json | psql "$PGCONN" -f -
+"""
+
+import json
+import sys
+
+FUNCIONES = {
+    "convocatoria": "robot_convocatoria",
+    "once": "robot_once",
+}
+
+
+def texto(valor):
+    """Un literal de texto de SQL: entre comillas simples y con las de dentro dobladas."""
+    return "'" + str(valor).replace("'", "''") + "'"
+
+
+def orden(cual, datos):
+    if cual not in FUNCIONES:
+        raise SystemExit("no se que guardar: %r" % cual)
+    if not datos.get("ok"):
+        raise SystemExit("el robot no ha encontrado nada que guardar")
+
+    jornada = int(datos["jornada_id"])
+    ids = ",".join(str(int(i)) for i in datos["ids"])
+    return "select %s(%d, '{%s}'::int[], %s);" % (
+        FUNCIONES[cual], jornada, ids, texto(datos.get("fuente") or ""))
+
+
+def main():
+    sys.stdout.reconfigure(encoding="utf-8")
+    print(orden(sys.argv[1] if len(sys.argv) > 1 else "", json.load(sys.stdin)))
+
+
+if __name__ == "__main__":
+    main()

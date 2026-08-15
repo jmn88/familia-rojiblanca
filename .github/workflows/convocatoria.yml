@@ -8,12 +8,15 @@
 # media hora. Si el administrador ya la habia cargado a mano, tampoco la toca:
 # manda siempre lo que haya puesto una persona.
 #
-# Usa el mismo secret que el otro proceso, SUPABASE_DB_URL (la cadena "Session
-# pooler" de Supabase). Esta explicado en el README.
+# El once inicial va en su propio proceso (once.yml): son cosas distintas, en
+# momentos distintos, y no tienen por que arrastrarse la una a la otra.
+#
+# Usa el mismo secret que los demas, SUPABASE_DB_URL (la cadena "Session pooler"
+# de Supabase). Esta explicado en el README.
 #
 # Para lanzarlo a mano: pestaña Actions -> Cargar la convocatoria -> Run workflow.
 
-name: Cargar convocatoria y once
+name: Cargar la convocatoria
 
 on:
   schedule:
@@ -21,7 +24,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: convocatoria
+  group: robot-sevilla
   cancel-in-progress: false
 
 jobs:
@@ -47,75 +50,29 @@ jobs:
           # ¿a que jornada le toca, y con que plantilla comparo los nombres?
           psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_pendiente();" > pendiente.json
 
-          RESULTADO=$(python3 robot/convocatoria.py < pendiente.json)
-          echo "$RESULTADO"
+          python3 robot/convocatoria.py < pendiente.json > resultado.json
+          cat resultado.json
 
-          leer() { echo "$RESULTADO" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('$1',''))"; }
+          leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
 
           if [ "$(leer ok)" != "True" ]; then
             echo "Sin cargar nada: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          JORNADA=$(leer jornada_id)
-          FUENTE=$(leer fuente)
-          IDS=$(echo "$RESULTADO" | python3 -c "import json,sys; print('{'+','.join(str(i) for i in json.load(sys.stdin)['ids'])+'}')")
-
-          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A \
-               -v jornada="$JORNADA" -v ids="$IDS" -v fuente="$FUENTE" \
-               -c "select robot_convocatoria(:'jornada'::int, :'ids'::int[], :'fuente');" \
-               | tee guardado.json
+          # La orden se arma en Python, ya escapada: psql no sustituye variables
+          # en las ordenes que se le pasan con -c, y eso hacia fallar esto entero.
+          python3 robot/orden_sql.py convocatoria < resultado.json > orden.sql
+          cat orden.sql
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden.sql | tee guardado.txt
 
           {
             echo "## Convocatoria de la jornada $(leer jornada)"
             echo ""
-            echo "Fuente: $FUENTE"
+            echo "Fuente: $(leer fuente)"
             echo ""
-            echo "Respuesta de la base de datos: \`$(cat guardado.json)\`"
+            echo "Respuesta de la base de datos: \`$(cat guardado.txt)\`"
             echo ""
             echo "Nombres de la noticia que no estan en la plantilla (canteranos, casi siempre):"
-            echo "$RESULTADO" | python3 -c "import json,sys; [print('- '+n) for n in json.load(sys.stdin)['sueltos']] or print('- ninguno')"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # El once NO se publica: se deja propuesto y lo confirma el administrador
-      # desde Admin, porque es lo que reparte los puntos.
-      - name: Buscar el once inicial y dejarlo propuesto
-        if: always()
-        env:
-          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
-        run: |
-          set -euo pipefail
-
-          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_pendiente_once();" > pendiente-once.json
-
-          RESULTADO=$(python3 robot/once.py < pendiente-once.json)
-          echo "$RESULTADO"
-
-          leer() { echo "$RESULTADO" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('$1',''))"; }
-
-          if [ "$(leer ok)" != "True" ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Once inicial: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          JORNADA=$(leer jornada_id)
-          FUENTE=$(leer fuente)
-          IDS=$(echo "$RESULTADO" | python3 -c "import json,sys; print('{'+','.join(str(i) for i in json.load(sys.stdin)['ids'])+'}')")
-
-          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A \
-               -v jornada="$JORNADA" -v ids="$IDS" -v fuente="$FUENTE" \
-               -c "select robot_once(:'jornada'::int, :'ids'::int[], :'fuente');" \
-               | tee once.json
-
-          {
-            echo ""
-            echo "## Once propuesto para la jornada $(leer jornada)"
-            echo ""
-            echo "Fuente: $FUENTE"
-            echo ""
-            echo "Respuesta de la base de datos: \`$(cat once.json)\`"
-            echo ""
-            echo "**Falta confirmarlo desde Admin**: hasta entonces no se puntua nada."
-            echo "$RESULTADO" | python3 -c "import json,sys; [print('- '+c['nombre']) for c in json.load(sys.stdin)['casados']]"
+            python3 -c "import json; d=json.load(open('resultado.json')); [print('- '+n) for n in d['sueltos']] or print('- ninguno')"
           } >> "$GITHUB_STEP_SUMMARY"
