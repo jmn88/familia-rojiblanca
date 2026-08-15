@@ -262,6 +262,7 @@ begin
       'cierre', v_cierre, 'prorrogada', j.prorroga_hasta is not null,
       'cerrada', v_cerrada, 'es_proxima', j.id is not distinct from f_jornada_proxima(),
       'convocatoria', j.convocatoria, 'convocatoria_en', j.convocatoria_en,
+      'convocatoria_fuente', j.convocatoria_fuente,
       'once_oficial', j.once_oficial,
       'publicada', j.once_oficial is not null, 'publicada_en', j.publicada_en),
     'filas', v_filas);
@@ -413,7 +414,7 @@ begin
   if not f_es_admin(p_token) then return json_build_object('ok', false, 'error', 'No autorizado'); end if;
 
   if p_jugadores is null then
-    update jornadas set convocatoria = null, convocatoria_en = null
+    update jornadas set convocatoria = null, convocatoria_en = null, convocatoria_fuente = null
      where id = p_jornada returning id into v_id;
     if v_id is null then return json_build_object('ok', false, 'error', 'Jornada no encontrada'); end if;
     return json_build_object('ok', true, 'convocatoria', false);
@@ -440,7 +441,10 @@ begin
    where a.jornada_id = p_jornada
      and exists (select 1 from unnest(a.picks) x where not (x = any(p_jugadores)));
 
-  update jornadas set convocatoria = p_jugadores, convocatoria_en = now()
+  -- guardada por una persona: deja de constar como cargada sola, aunque
+  -- lo unico que haya hecho el administrador sea repasarla y confirmarla
+  update jornadas set convocatoria = p_jugadores, convocatoria_en = now(),
+                      convocatoria_fuente = null
    where id = p_jornada returning id into v_id;
   if v_id is null then return json_build_object('ok', false, 'error', 'Jornada no encontrada'); end if;
 

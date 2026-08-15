@@ -44,8 +44,10 @@ create table if not exists jornadas (
 
 -- para bases de datos creadas antes de que existieran las columnas
 alter table jornadas add column if not exists hora_confirmada boolean not null default false;
-alter table jornadas add column if not exists convocatoria     int[];
-alter table jornadas add column if not exists convocatoria_en  timestamptz;
+alter table jornadas add column if not exists convocatoria        int[];
+alter table jornadas add column if not exists convocatoria_en     timestamptz;
+-- de donde salio: null = a mano, o la direccion de la noticia si la cargo el robot
+alter table jornadas add column if not exists convocatoria_fuente text;
 
 do $$ begin
   alter table jornadas add constraint convocatoria_min

@@ -19,6 +19,8 @@ const S = {
   convJornada:  null, // jornada de la convocatoria (se carga antes)
   onceCargado: null,
   convCargada: null,
+  convFuente: null,   // de dónde salió la convocatoria guardada (null = a mano)
+  convDesde:  null,
   adminEditando: null,
   lecturaFoto: null   // lo que ha salido de leer la foto de la convocatoria
 };
@@ -511,8 +513,13 @@ async function pintarAdmin() {
       `<option value="${j.id}" ${j.id === S.convJornada ? "selected" : ""}>Jornada ${j.numero} · ${rotulo(j)}${j.convocatoria ? " ✓" : ""}</option>`).join("")}</select>
 
     <p class="cuando" style="margin-top:10px">${convGuardada
-      ? `Convocatoria puesta: ${convGuardada.length} jugadores.`
-      : "Sin convocatoria: por ahora se puede alinear a toda la plantilla."}</p>
+      ? `Convocatoria puesta: ${convGuardada.length} jugadores`
+        + (S.convDesde ? `, desde el ${fechaLarga(S.convDesde)} a las ${hora(S.convDesde)}` : "")
+        + (S.convFuente ? ". La cargó sola la web del club." : " (cargada a mano).")
+      : "Sin convocatoria: por ahora se puede alinear a toda la plantilla. Si el club la publica antes del cierre, se carga sola."}</p>
+    ${convGuardada && S.convFuente
+      ? `<p class="cuando"><a href="${esc(S.convFuente)}" target="_blank" rel="noopener">Ver la noticia de la que salió</a> — repásala si quieres, y corrige aquí abajo lo que haga falta.</p>`
+      : ""}
 
     <h3>Leer la foto</h3>
     <p class="cuando">La foto no se sube a ningún sitio: se lee aquí mismo, en tu móvil. La primera vez tarda más porque se descarga el lector de texto.</p>
@@ -663,7 +670,11 @@ async function cargarConvAdmin() {
   if (!S.convJornada) return;
   S.convCargada = S.convJornada;
   const d = await API.rpc("api_jornada", { p_jornada: S.convJornada, p_token: S.adminToken });
-  if (d.ok) S.adminConv = d.jornada.convocatoria || [];
+  if (d.ok) {
+    S.adminConv  = d.jornada.convocatoria || [];
+    S.convFuente = d.jornada.convocatoria_fuente || null;
+    S.convDesde  = d.jornada.convocatoria_en || null;
+  }
   await pintarAdmin();
 }
 
@@ -905,6 +916,8 @@ document.addEventListener("change", async ev => {
     S.adminConv = [];
     S.lecturaFoto = null;
     S.convCargada = null;
+    S.convFuente = null;
+    S.convDesde = null;
     await pintarAdmin();
   }
 });

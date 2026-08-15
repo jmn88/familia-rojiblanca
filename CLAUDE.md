@@ -58,6 +58,17 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   foto no se sube a ningún sitio ni se guarda: lo único que viaja es la lista de
   identificadores, y solo al pulsar Guardar. **La lectura siempre la confirma el
   administrador antes de guardar**: nunca se aplica a ciegas.
+- **La convocatoria se carga sola desde la web del club**, que la publica en
+  texto («La lista completa la forman: …») dentro del HTML servido, sin hacer
+  falta navegador. Lo hace `.github/workflows/convocatoria.yml` cada media hora,
+  con `robot/convocatoria.py` (solo biblioteca estándar) y las funciones
+  `robot_*` de `sql/05_robot.sql`, a las que **se les retira el permiso al rol
+  anónimo**: se llaman con la cadena de conexión, nunca desde la web. Reglas del
+  robot: no pisa nunca una convocatoria ya puesta, no carga con el plazo
+  cerrado, y si casan menos de 14 nombres no guarda nada. La subida por foto se
+  queda como respaldo.
+  **Leer los tuits de @SevillaFC se descartó**: desde febrero de 2026 X cobra por
+  publicación leída. No lo replantees sin que el usuario lo pida.
 - **La foto se interpreta por coordenadas, no por el texto leído.** El cartel va
   a dos columnas y el lector las devuelve pegadas en un renglón («1 ODYSSEAS 17
   SUAZO»); además la fuente del club (Montecatini Pro) deforma las cifras — el
@@ -113,11 +124,13 @@ app/api.js            llamadas RPC a la base de datos
 app/demo.js           base de datos falsa, solo para demo.html
 app/convocatoria.js   lee la foto de la convocatoria (imagen -> lista de jugadores)
 app/app.js            toda la lógica de la interfaz
+robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
 css/estilos.css
 sql/01_esquema.sql    tablas y cierre de permisos
 sql/02_api.sql        funciones (PIN, cierre, puntuación, admin)
 sql/03_datos.sql      participantes, plantilla y jornada 1
 sql/04_calendario.sql jornadas 2 a 38 del sorteo oficial, con hora tentativa
+sql/05_robot.sql      funciones del robot; cerradas al rol anónimo a propósito
 sql/99_autoprueba.sql prueba de extremo a extremo; no deja rastro
 data/seed.json        los mismos datos de partida en JSON, como referencia
 ```

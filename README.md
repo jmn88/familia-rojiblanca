@@ -145,7 +145,43 @@ base de datos y nunca salen de ella.
   muestran como tales (dos primeros, ningún segundo).
 - Quien no envía alineación figura como **no participó**, con 0 puntos.
 
-## La convocatoria, paso a paso
+## La convocatoria se carga sola
+
+El Sevilla FC publica la convocatoria en su propia web, y dentro va **en texto**:
+«La lista completa la forman: Odysseas, Fran González…». Un proceso de GitHub
+(`.github/workflows/convocatoria.yml`) mira **cada media hora** si hay un partido
+en los próximos tres días sin convocatoria y con el plazo abierto; cuando el club
+la publica, la encuentra, cruza los nombres con la plantilla y la carga. No tienes
+que hacer nada.
+
+Un par de reglas para que no te sorprenda:
+
+- **Nunca pisa lo que hayas hecho tú.** Si ya la habías cargado a mano, el robot
+  no la toca. Y en cuanto tú guardas la convocatoria desde Admin, pasa a constar
+  como puesta a mano.
+- **No carga nada con el plazo cerrado**, que a esas alturas ya no serviría.
+- **Si algo no cuadra, se calla.** Si de los 24 nombres de la noticia casan menos
+  de 14 con la plantilla, no guarda nada y lo anota en su registro: es señal de
+  que la plantilla está sin actualizar o de que la web del club ha cambiado.
+- En Admin verás si la cargó él, con un enlace a la noticia, y puedes corregir
+  lo que quieras: manda siempre lo último que guardes tú.
+
+Los nombres no coinciden exactamente con los de la plantilla («Juan Iglesias» por
+«Iglesias», «Andrés Castrín» por «A. Castrín»), y eso ya lo resuelve solo. Los
+canteranos que no estén dados de alta se quedan fuera y se anotan en el registro
+del proceso; si quieres que puedan alinearse, añádelos desde Admin.
+
+Para lanzarlo a mano en cualquier momento: pestaña **Actions → Cargar la
+convocatoria → Run workflow**.
+
+> ¿Y por qué no se leen los tuits de @SevillaFC? Porque desde febrero de 2026 X
+> cobra por leer publicaciones y habría que darle una tarjeta. La web del club da
+> lo mismo, gratis y en texto limpio.
+
+## La convocatoria a mano, paso a paso
+
+Sigue estando, y es lo que se usa si el club cambia su web o si prefieres
+cargarla tú:
 
 El Sevilla publica la convocatoria de cada partido como una imagen con el dorsal
 y el apellido de cada jugador. La web la lee sola:
@@ -196,11 +232,13 @@ app/api.js            llamadas a la base de datos
 app/demo.js           base de datos de mentira, solo para demo.html
 app/convocatoria.js   lee la foto de la convocatoria y la cruza con la plantilla
 app/app.js            lógica de la interfaz
+robot/convocatoria.py busca la convocatoria en la web del club (lo usa GitHub)
 css/estilos.css
 sql/01_esquema.sql    tablas
 sql/02_api.sql        funciones (seguridad, cierre, puntuación)
 sql/03_datos.sql      participantes, plantilla y jornada 1
 sql/04_calendario.sql las 37 jornadas restantes, con la hora aún sin confirmar
+sql/05_robot.sql      lo que usa el robot de la convocatoria
 sql/99_autoprueba.sql prueba de que todo funciona; no deja rastro
 data/seed.json        los mismos datos en JSON, para referencia
 ```
