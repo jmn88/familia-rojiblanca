@@ -335,14 +335,14 @@ Todo lo descrito arriba está **funcionando y verificado en vivo**:
 - Jornada 1 (Sevilla 15/08/2026) jugada, con once oficial puesto y puntos
   calculados.
 
-**Los avisos por correo (issue #3) están escritos pero NO en producción**
-(agosto de 2026). Comprobado en local: toda la pantalla de avisos, contra la
-demo y en el navegador (poner el correo, rechazarlo por malo, «Ahora no», apagar,
-volver a encender, borrar, y que no se vuelva a preguntar al reentrar); y el
-recorrido entero de `robot/avisos.py` fingiendo el envío, incluido que un fallo
-no se apunte y que los correos no salgan en los registros. **Sin comprobar
-todavía**: el SQL (no hay base de datos local — lo dirá la autoprueba) y un envío
-de verdad por Brevo.
+**Los avisos por correo (issue #3) están en producción** desde el 16 de agosto de
+2026 (PR #4, commit `be7eace`). Comprobado: la autoprueba pasa contra la base de
+datos real con las nueve comprobaciones nuevas (el correo cifrado, que no salga
+en claro por `api_estado` ni `api_jornada`, a quién toca avisar, que no se avise
+dos veces); toda la pantalla de avisos en el navegador contra la demo; el
+recorrido de `robot/avisos.py` fingiendo el envío; y la web publicada carga.
+Jesús ya tiene su correo puesto. **Lo único sin estrenar es un envío de verdad
+por Brevo**: los secrets están dados de alta pero ningún correo ha salido aún.
 
 ## Pendiente
 
@@ -360,11 +360,13 @@ de verdad por Brevo.
 5. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
-6. **Los avisos por correo, por estrenar**: falta subirlos a producción, dar de
-   alta los dos secrets de Brevo (`BREVO_API_KEY` y `BREVO_REMITENTE`, explicados
-   en el README) y ver el primer envío de verdad. Sin esos secrets el proceso no
-   falla mientras no haya nadie a quien avisar; en cuanto lo haya, se pone en
-   rojo y lo dice.
+6. **El primer envío de verdad de un aviso**, que aún no ha salido ninguno.
+   Para probarlo sin esperar al partido hay que adelantar el `kickoff` de la
+   próxima jornada desde Admin (a unas 2 horas vista: menos de 3 para que entre
+   en la ventana, pero más de 1h30 para no despertar al robot del once), lanzar
+   el proceso a mano desde Actions, y luego **devolver la hora a su sitio y
+   borrar la fila de `recordatorios`** — si no, esa persona se queda sin el aviso
+   de verdad de esa jornada.
 
 ## Cómo mantener este fichero
 
