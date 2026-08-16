@@ -40,7 +40,14 @@ innecesaria, y di siempre qué tiene que hacer él y qué haces tú.
   de sesión fija el PIN de esa persona. El administrador tiene contraseña propia
   y la primera que se escribe queda fijada. **Único administrador: Jesús.**
 - **Cierre del plazo**: automático una hora antes del inicio del partido, con
-  botones de prórroga (+10 / +30 min) para el administrador.
+  botones de prórroga (+10 / +30 min) para el administrador. **También se cierra
+  en cuanto se conoce el once** (`once_oficial` o `once_propuesto`, aunque sea
+  la propuesta del robot sin confirmar), independientemente del reloj —
+  comprobado en `api_guardar` en SQL, no solo en el frontend. Motivo: el club a
+  veces publica la alineación minutos antes de la hora normal de cierre, y ya
+  hubo una jornada real con veinte minutos de ventana en la que se podía seguir
+  cambiando el once sabiendo quién jugaba. La revelación de alineaciones ajenas
+  (visibilidad, no envío) sigue yendo solo por el reloj: no se adelanta.
 - **Solo se alinea al próximo partido**: la jornada de número más bajo con el
   plazo todavía abierto (`f_jornada_proxima()` en SQL, `es_proxima` en el JSON
   del estado). Las jornadas futuras no se ofrecen en ninguna pestaña y

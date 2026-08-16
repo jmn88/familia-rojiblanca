@@ -151,6 +151,13 @@ begin
     fallos := fallos || E'\n- no deja marcar un once oficial sacado de la convocatoria: ' || (r->>'error');
   end if;
 
+  -- Con el once oficial ya puesto se cierra el envio, aunque el reloj del
+  -- cierre normal le siga dando minutos (aqui hay una prorroga en marcha).
+  r := api_guardar(v_tok, v_jor, v_conv);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'\n- deja enviar la alineacion aunque ya se conoce el once oficial';
+  end if;
+
   r := api_jornada(v_jor, null);
   select x->>'participo', (x->>'puntos')::int into v_pk, v_pts
     from json_array_elements(r->'filas') x
@@ -165,6 +172,23 @@ begin
 
   r := api_admin_once(v_adm, v_jor, null);   -- se despublica y seguimos probando
   if not (r->>'ok')::boolean then fallos := fallos || E'\n- no deja retirar el once oficial'; end if;
+
+  -- Lo mismo tiene que pasar con una PROPUESTA sin confirmar todavia: basta con
+  -- que el robot la haya encontrado para que se cierre, sin esperar a que el
+  -- administrador la confirme. robot_once() es la funcion que usa el proceso
+  -- automatico (no pasa por api_admin_once ni pide token de administrador).
+  r := robot_once(v_jor, v_conv, 'prueba-autoprueba');
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'\n- no deja guardar la propuesta del robot: ' || (r->>'error');
+  end if;
+
+  r := api_guardar(v_tok, v_jor, v_conv);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'\n- deja enviar la alineacion aunque hay una propuesta de once sin confirmar';
+  end if;
+
+  update jornadas set once_propuesto = null, once_propuesto_en = null, once_propuesto_fuente = null
+   where id = v_jor;   -- limpiamos: el resto de la prueba se fia de que no haya nada propuesto
 
   r := api_guardar(v_tok, v_jor, v_conv);
   if not (r->>'ok')::boolean then

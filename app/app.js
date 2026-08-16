@@ -209,7 +209,15 @@ async function pintarAlineacion() {
     S.jornadaMia = j.id;
   }
 
-  const cerrada = ahora() >= new Date(j.cierre);
+  // El plazo se cierra por la hora, pero también en cuanto se conoce el once
+  // (aunque sea solo la propuesta del robot, sin confirmar todavía): el club a
+  // veces lo publica minutos antes del cierre normal, y no tiene sentido
+  // seguir dejando cambiar el once sabiendo ya quién sale de inicio. Lo
+  // comprueba la base de datos igual: esto es solo para no ofrecer un botón
+  // que el servidor va a rechazar.
+  const cerradaPorHora  = ahora() >= new Date(j.cierre);
+  const onceConocido    = Boolean(j.publicada || j.tiene_propuesta);
+  const cerrada = cerradaPorHora || onceConocido;
   const cambiado = JSON.stringify([...S.picks].sort()) !== JSON.stringify([...S.guardado].sort());
 
   // La convocatoria puede llegar después de que alguien haya enviado su once.
@@ -227,8 +235,10 @@ async function pintarAlineacion() {
       ${j.prorrogada ? aviso("El administrador ha prorrogado el plazo.") : ""}
       ${conv ? aviso(`Ya se conoce la convocatoria: ${conv.length} jugadores. Solo puedes alinear a los convocados.`) : ""}
       ${cerrada
-        ? aviso("El plazo se cerró. Puedes ver todas las alineaciones en la pestaña Jornada.")
-        : `<p class="cuando" style="margin-top:10px">El plazo cierra una hora antes del partido, a las ${hora(j.cierre)}. Puedes cambiar tu once las veces que quieras hasta entonces.</p>
+        ? aviso(cerradaPorHora
+            ? "El plazo se cerró. Puedes ver todas las alineaciones en la pestaña Jornada."
+            : `Ya se conoce el once del Sevilla, así que el plazo se ha cerrado antes de tiempo: no se admiten más envíos ni cambios. Las alineaciones de todos se revelan a las ${hora(j.cierre)}, como estaba previsto.`)
+        : `<p class="cuando" style="margin-top:10px">El plazo cierra una hora antes del partido, a las ${hora(j.cierre)}, o antes si se conoce el once. Puedes cambiar tu once las veces que quieras hasta entonces.</p>
            <p class="cuando" style="margin-top:6px">Solo se juega al próximo partido: las demás jornadas se van abriendo una a una, según se disputan.</p>`}
     </div>
 

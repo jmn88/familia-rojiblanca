@@ -136,9 +136,14 @@ base de datos y nunca salen de ella.
   convocados**; los demás salen tachados y no se dejan elegir. Mientras no haya
   convocatoria, vale toda la plantilla. Lo enviado antes de conocerse la
   convocatoria **sigue contando**. Ver más abajo.
-- **Cierre**: automático **1 hora antes del inicio** del partido. El admin puede
-  prorrogarlo unos minutos si hace falta. Hasta el cierre nadie ve las
-  alineaciones de los demás (solo quién ha enviado ya).
+- **Cierre**: automático **1 hora antes del inicio** del partido, o **antes si se
+  conoce el once** — el club a veces lo confirma minutos antes de esa hora, y en
+  cuanto se sabe (aunque sea solo la propuesta del robot, sin confirmar todavía)
+  se corta el envío: no tendría sentido dejar cambiar el once ya sabiendo quién
+  sale de inicio. El admin puede prorrogar el cierre por hora unos minutos si
+  hace falta, pero eso no reabre el envío si el once ya está confirmado. Hasta el
+  cierre nadie ve las alineaciones de los demás (solo quién ha enviado ya); esa
+  revelación sigue yendo por la hora prevista, no por si el once se conoce antes.
 - **Clasificación del día**: al cerrarse se revelan todos los onces. Cuando el
   admin marca el once inicial real, aparecen aciertos y puntos. Debajo de cada
   alineación se ve **a qué hora la envió cada uno** y, si la retocó, cuándo fue

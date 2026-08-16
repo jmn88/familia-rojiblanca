@@ -169,6 +169,16 @@ begin
     return json_build_object('ok', false, 'error', 'El plazo esta cerrado');
   end if;
 
+  -- En cuanto se conoce el once (aunque sea solo la propuesta del robot, sin
+  -- confirmar todavia) se corta el envio, aunque el reloj del cierre normal no
+  -- haya llegado. El club a veces publica la alineacion minutos antes de que
+  -- cierre el plazo, y no tendria sentido dejar cambiar el once ya sabiendo
+  -- quien juega de verdad.
+  if j.once_oficial is not null or j.once_propuesto is not null then
+    return json_build_object('ok', false, 'error',
+      'Ya se conoce el once del Sevilla: el plazo se ha cerrado antes de tiempo');
+  end if;
+
   -- Solo se juega al proximo partido. Aunque alguien trastee la pagina para
   -- mandar un once a una jornada de dentro de tres meses, aqui se rechaza.
   if j.id <> f_jornada_proxima() then

@@ -4,7 +4,7 @@
    La web de verdad (index.html) usa app/api.js y la base de datos real. */
 
 const API = (function () {
-  const CLAVE = "fr_demo_v4";   // al cambiar los datos de ejemplo se sube el número
+  const CLAVE = "fr_demo_v5";   // al cambiar los datos de ejemplo se sube el número
   const dia = 864e5;
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
@@ -141,6 +141,9 @@ const API = (function () {
       const j = db.jornadas.find(x => x.id === p_jornada);
       if (!j) return mal("Jornada no encontrada");
       if (cerrada(j)) return mal("El plazo está cerrado");
+      if (j.once_oficial || j.once_propuesto) {
+        return mal("Ya se conoce el once del Sevilla: el plazo se ha cerrado antes de tiempo");
+      }
       if (j.id !== proxima()?.id) return mal("Solo se puede enviar la alineación del próximo partido");
       if (p_picks.length !== 11) return mal("Tienes que elegir exactamente 11 jugadores");
       if (j.convocatoria && p_picks.some(id => !j.convocatoria.includes(id))) {
