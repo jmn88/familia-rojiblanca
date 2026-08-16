@@ -155,11 +155,21 @@ end $$;
 -- cada funcion nueva, y anon lo hereda. Quitarselo solo a anon NO sirve de nada
 -- (comprobado en vivo: se podian llamar desde la web con la clave publica).
 -- Hay que retirarselo tambien a PUBLIC.
-revoke execute on function robot_pendiente()                    from public, anon, authenticated;
-revoke execute on function robot_convocatoria(int, int[], text) from public, anon, authenticated;
-revoke execute on function robot_pendiente_once()               from public, anon, authenticated;
-revoke execute on function robot_once(int, int[], text)         from public, anon, authenticated;
-revoke execute on function robot_once_nota(int, text)           from public, anon, authenticated;
+-- Se hace en bucle sobre TODAS las que se llamen robot_algo, y no con una lista
+-- escrita a mano: 02_api.sql vuelve a dar permiso a todas las funciones cada vez
+-- que se aplica, asi que una funcion nueva del robot que no estuviera en la
+-- lista se quedaria abierta hasta que alguien se acordara de anadirla aqui.
+do $$
+declare f record;
+begin
+  for f in select p.oid::regprocedure as firma
+             from pg_proc p
+             join pg_namespace n on n.oid = p.pronamespace
+            where n.nspname = 'public' and p.proname like 'robot\_%'
+  loop
+    execute format('revoke execute on function %s from public, anon, authenticated', f.firma);
+  end loop;
+end $$;
 
 -- Y se comprueba aqui mismo, que esto no puede quedarse a medias sin que nadie
 -- se entere: si alguna siguiera abierta al rol anonimo, el script falla y el

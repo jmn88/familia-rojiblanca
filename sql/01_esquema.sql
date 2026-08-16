@@ -13,6 +13,19 @@ create table if not exists participantes (
   creado_en timestamptz not null default now()
 );
 
+-- Aviso por correo cuando se acerca el cierre y no has enviado tu once. Lo
+-- activa cada uno si quiere, y se le pregunta la primera vez que entra.
+--
+-- El correo se guarda CIFRADO (ver sql/06_avisos.sql) y ninguna funcion de la
+-- web lo devuelve en claro, ni siquiera al administrador: solo sale la pista
+-- («j***@gmail.com»), que es lo que se guarda aparte en email_pista para poder
+-- enseñarla sin descifrar nada.
+alter table participantes add column if not exists email_cifrado     bytea;
+alter table participantes add column if not exists email_pista       text;
+alter table participantes add column if not exists avisos            boolean not null default false;
+-- para no volver a preguntarle a quien ya dijo que no
+alter table participantes add column if not exists avisos_preguntado boolean not null default false;
+
 create table if not exists jugadores (
   id       serial primary key,
   dorsal   int,
@@ -76,6 +89,15 @@ create table if not exists alineaciones (
   constraint picks_11 check (array_length(picks,1) = 11)
 );
 
+-- Un aviso por persona y jornada, y no mas: si el proceso se repite (o se lanza
+-- a mano), aqui esta la constancia de lo ya enviado.
+create table if not exists recordatorios (
+  jornada_id      int not null references jornadas(id) on delete cascade,
+  participante_id int not null references participantes(id) on delete cascade,
+  enviado_en      timestamptz not null default now(),
+  primary key (jornada_id, participante_id)
+);
+
 create table if not exists sesiones (
   token           uuid primary key default gen_random_uuid(),
   participante_id int references participantes(id) on delete cascade,
@@ -106,6 +128,7 @@ alter table participantes  enable row level security;
 alter table jugadores      enable row level security;
 alter table jornadas       enable row level security;
 alter table alineaciones   enable row level security;
+alter table recordatorios  enable row level security;
 alter table sesiones       enable row level security;
 alter table intentos_login enable row level security;
 alter table config         enable row level security;
