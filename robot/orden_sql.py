@@ -41,6 +41,18 @@ def orden(cual, datos):
         FUNCIONES[cual], jornada, ids, texto(datos.get("fuente") or ""))
 
 
+def avisos(datos):
+    """Las ordenes que apuntan los recordatorios que SI han salido.
+
+    Una por persona, y solo de las enviadas: si a alguien le fallo el correo, no
+    se apunta y se le vuelve a intentar en el siguiente pase."""
+    jornada = int(datos["jornada_id"])
+    ids = [int(i) for i in datos.get("enviados") or []]
+    if not ids:
+        raise SystemExit("no ha salido ningun aviso que apuntar")
+    return "\n".join("select robot_aviso_enviado(%d, %d);" % (jornada, i) for i in ids)
+
+
 def nota(pendiente, motivo):
     """La orden que apunta un intento fallido del robot del once.
 
@@ -57,6 +69,8 @@ def main():
     cual = sys.argv[1] if len(sys.argv) > 1 else ""
     if cual == "nota":
         print(nota(json.load(sys.stdin), sys.argv[2] if len(sys.argv) > 2 else ""))
+    elif cual == "avisos":
+        print(avisos(json.load(sys.stdin)))
     else:
         print(orden(cual, json.load(sys.stdin)))
 

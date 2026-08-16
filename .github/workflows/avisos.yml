@@ -1,0 +1,89 @@
+# Recuerda por correo a quien no haya mandado su alineación.
+#
+# Mira cada cuarto de hora. Quien decide a quién hay que avisar es la base de
+# datos (robot_avisos_pendientes): solo contesta desde tres horas antes del
+# partido, con el plazo abierto y el once aún sin conocerse, y solo con los que
+# tienen los avisos encendidos y no han enviado nada. El resto del tiempo esto
+# se va de vacío en unos segundos.
+#
+# Un aviso por persona y jornada: en cuanto sale el correo se apunta, y no se
+# repite. Si el envío falla, no se apunta y se reintenta en el siguiente pase.
+#
+# OJO CON LOS REGISTROS: la respuesta de la base de datos lleva los correos en
+# claro (hay que descifrarlos para poder mandarlos) y los registros de Actions
+# de un repositorio público los puede leer cualquiera. Por eso ese fichero NO se
+# imprime nunca. Lo que sí se imprime es la salida de robot/avisos.py, que
+# solo lleva nombres.
+#
+# Necesita, además de SUPABASE_DB_URL, dos secrets de Brevo: BREVO_API_KEY y
+# BREVO_REMITENTE. Están explicados en el README. Mientras no haya nadie a quien
+# avisar no hacen falta: el proceso ni los mira.
+#
+# Para lanzarlo a mano: pestaña Actions -> Avisar a quien le falte la alineación
+# -> Run workflow.
+
+name: Avisar a quien le falte la alineación
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+# grupo propio: si compartiera el de los otros robots, el que mira el once cada
+# cinco minutos le quitaría el turno justo cuando hace falta
+concurrency:
+  group: robot-avisos
+  cancel-in-progress: false
+
+jobs:
+  avisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Asegurar el cliente de PostgreSQL
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client)
+
+      - name: Avisar a quien haga falta
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_REMITENTE: ${{ secrets.BREVO_REMITENTE }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PGCONN:-}" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL. Esta explicado en el README."
+            exit 1
+          fi
+
+          # A quien hay que avisar. Este fichero lleva correos: no se imprime.
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_avisos_pendientes();" > pendientes.json
+
+          python3 robot/avisos.py < pendientes.json > resultado.json
+          cat resultado.json          # este si: solo lleva nombres
+
+          leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
+
+          if [ "$(leer n_enviados)" = "0" ] || [ -z "$(leer n_enviados)" ]; then
+            echo "Sin avisar a nadie: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            # La orden se arma en Python, ya escapada: psql no sustituye variables
+            # en las ordenes que se le pasan con -c.
+            python3 robot/orden_sql.py avisos < resultado.json > orden.sql
+            cat orden.sql
+            psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden.sql > /dev/null
+
+            {
+              echo "## Avisados para la jornada $(leer jornada)"
+              echo ""
+              python3 -c "import json; [print('- '+n) for n in json.load(open('resultado.json'))['nombres']]"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Si algun correo no ha salido, que se vea en rojo: se reintenta solo
+          # dentro de un cuarto de hora, pero conviene enterarse.
+          if [ "$(leer n_fallos)" != "0" ] && [ -n "$(leer n_fallos)" ]; then
+            python3 -c "import json; [print('::error::No ha salido el aviso de %s — %s' % (f['nombre'], f['motivo'])) for f in json.load(open('resultado.json'))['fallos']]"
+            exit 1
+          fi

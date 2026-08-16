@@ -22,7 +22,9 @@ declare
   v_conv   int[];
   r        json;
   v_pts    int;
+  v_n      int;
   v_pk     text;
+  v_correo text := 'zz.prueba@ejemplo.com';
   fallos   text := '';
 begin
   -- ------------------------------------------------------------ preparacion
@@ -65,6 +67,63 @@ begin
   r := api_login(v_part, '1234');
   if not (r->>'ok')::boolean then fallos := fallos || E'\n- no reconoce el PIN correcto'; end if;
 
+  -- ------------------------------------------------------ avisos por correo
+  -- (aqui ZZ Prueba todavia no ha enviado alineacion y el partido es dentro de
+  --  dos horas, que es justo el caso en el que hay que avisarle)
+  r := api_avisos(v_tok, 'esto-no-es-un-correo', true);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- acepta como correo cualquier cosa'; end if;
+
+  r := api_avisos(gen_random_uuid(), v_correo, true);
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- deja poner el correo con un token inventado'; end if;
+
+  r := api_avisos(v_tok, v_correo, true);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'\n- no deja activar los avisos por correo: ' || (r->>'error');
+  end if;
+  if r->>'email_pista' is distinct from 'z***@ejemplo.com' then
+    fallos := fallos || E'\n- la pista del correo sale mal: ' || coalesce(r->>'email_pista', 'nula');
+  end if;
+
+  -- lo importante: el correo no puede salir en claro por ninguna via de la web,
+  -- ni quedarse sin cifrar en la tabla
+  if api_estado(v_tok)::text like '%' || v_correo || '%' then
+    fallos := fallos || E'\n- ¡api_estado devuelve el correo en claro!';
+  end if;
+  if api_jornada(v_jor, v_tok)::text like '%' || v_correo || '%' then
+    fallos := fallos || E'\n- ¡api_jornada devuelve el correo en claro!';
+  end if;
+  if (select encode(email_cifrado, 'escape') from participantes where id = v_part)
+     like '%ejemplo.com%' then
+    fallos := fallos || E'\n- ¡el correo se guarda sin cifrar en la tabla!';
+  end if;
+
+  select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part and x->>'email' = v_correo;
+  if v_n <> 1 then
+    fallos := fallos || E'\n- no se avisaria a quien tiene el partido encima y no ha enviado nada';
+  end if;
+
+  -- una vez mandado, no se manda otra vez
+  r := robot_aviso_enviado(v_jor, v_part);
+  select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part;
+  if v_n <> 0 then fallos := fallos || E'\n- el mismo aviso se mandaria dos veces'; end if;
+  delete from recordatorios where jornada_id = v_jor and participante_id = v_part;
+
+  -- apagarlos deja de avisar, pero no borra el correo
+  r := api_avisos(v_tok, null, false);
+  select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part;
+  if v_n <> 0 then fallos := fallos || E'\n- sigue avisando con los avisos apagados'; end if;
+  if (select email_pista from participantes where id = v_part) is null then
+    fallos := fallos || E'\n- apagar los avisos borra el correo, y no deberia';
+  end if;
+
+  r := api_avisos(v_tok, null, true);        -- se vuelven a encender para lo de abajo
+  if not (r->>'avisos')::boolean then
+    fallos := fallos || E'\n- no se pueden reactivar los avisos con el correo ya puesto';
+  end if;
+
   -- ---------------------------------------------------------- alineaciones
   r := api_guardar(v_tok, v_jor, v_picks[1:10]);
   if (r->>'ok')::boolean then fallos := fallos || E'\n- acepta una alineacion de 10 jugadores'; end if;
@@ -77,6 +136,13 @@ begin
 
   r := api_guardar(v_tok, v_jor, v_picks);
   if not (r->>'ok')::boolean then fallos := fallos || E'\n- no guarda una alineacion valida: ' || (r->>'error'); end if;
+
+  -- y en cuanto la envia, deja de estar pendiente de aviso
+  select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part;
+  if v_n <> 0 then
+    fallos := fallos || E'\n- se avisaria a alguien que ya ha enviado su alineacion';
+  end if;
 
   -- solo se juega al proximo partido, no a una jornada posterior aunque este abierta
   r := api_guardar(v_tok, v_jor2, v_picks);

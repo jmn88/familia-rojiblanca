@@ -152,6 +152,8 @@ base de datos y nunca salen de ella.
 - **Clasificación general**: acumulado de las 38 jornadas. Los empates se
   muestran como tales (dos primeros, ningún segundo).
 - Quien no envía alineación figura como **no participó**, con 0 puntos.
+- **Aviso por correo** (opcional, lo activa cada uno): si tres horas antes del
+  partido no has enviado tu once, te llega un recordatorio. Ver más abajo.
 
 ## La convocatoria se carga sola
 
@@ -213,6 +215,53 @@ arrastra a la otra si falla.
 > cobra por leer publicaciones y habría que darle una tarjeta. La web del club da
 > lo mismo, gratis y en texto limpio.
 
+## El aviso por correo
+
+Si a alguien se le olvida mandar su once, la web se lo recuerda: **tres horas
+antes del partido**, a quien tenga los avisos puestos y no haya enviado nada le
+llega un correo. Un aviso por persona y jornada, y nada más — ni resultados, ni
+clasificaciones.
+
+Es **voluntario y lo decide cada uno**. La primera vez que entras con tu nombre
+te sale la pregunta arriba del todo, con un *Ahora no* que la quita para
+siempre. Después, la tarjeta se queda al final de «Mi alineación» para poner el
+correo, cambiarlo, apagar los avisos o borrarlo, cuando quieras.
+
+**El correo se guarda cifrado y no vuelve a salir de la base de datos.** No
+aparece en la web, no lo puede leer nadie del grupo y **tú tampoco**: en la tabla
+de participantes de Admin verás quién tiene avisos, pero solo como
+`j***@gmail.com`. Lo único que lo descifra es el proceso que manda el correo.
+
+Un proceso de GitHub (`.github/workflows/avisos.yml`) mira cada cuarto de hora.
+Como en los otros robots, quien decide si toca es la base de datos: fuera de esas
+tres horas se va de vacío en segundos. Y no avisa si el once ya se conoce (el
+plazo está cerrado de hecho) ni a quien ya envió.
+
+### Darlo de alta (una vez)
+
+Los correos salen por **Brevo**, que deja mandar 300 al día gratis. Aquí como
+mucho salen 6 por jornada.
+
+1. Crea la cuenta en <https://www.brevo.com> y verifica tu dirección de correo
+   como **remitente** (te llega un correo de confirmación). Es la dirección desde
+   la que los demás recibirán el aviso.
+2. En Brevo: **SMTP & API → API Keys → Generate a new API key**. Cópiala en ese
+   momento, que no se vuelve a enseñar.
+3. En **GitHub**, en el repositorio: **Settings → Secrets and variables →
+   Actions → New repository secret**, y crea dos:
+   - `BREVO_API_KEY` — la clave del paso 2.
+   - `BREVO_REMITENTE` — la dirección verificada del paso 1.
+
+Mientras no haya nadie a quien avisar, el proceso ni los mira: puedes dejarlo
+para cuando alguien active los avisos. Si llega el momento y faltan, el proceso
+se pone en rojo en Actions y te lo dice.
+
+> Si un correo no sale (Brevo caído, clave mal), no se apunta como enviado y se
+> reintenta en el siguiente pase, un cuarto de hora después. El fallo se ve en
+> rojo en la pestaña Actions, con el nombre de a quién no se le pudo avisar —
+> nunca con su dirección: los registros de Actions de un repositorio público los
+> puede leer cualquiera.
+
 ## La convocatoria a mano, paso a paso
 
 Sigue estando, y es lo que se usa si el club cambia su web o si prefieres
@@ -270,6 +319,7 @@ app/app.js            lógica de la interfaz
 robot/comun.py        lo que comparten los dos robots (pedir páginas, casar nombres)
 robot/convocatoria.py busca la convocatoria en la web del club (lo usa GitHub)
 robot/once.py         busca el once inicial y lo deja propuesto
+robot/avisos.py       manda los recordatorios de alineación por correo
 robot/orden_sql.py    arma la orden de SQL que guarda lo que han encontrado
 css/estilos.css
 sql/01_esquema.sql    tablas
@@ -277,6 +327,7 @@ sql/02_api.sql        funciones (seguridad, cierre, puntuación)
 sql/03_datos.sql      participantes, plantilla y jornada 1
 sql/04_calendario.sql las 37 jornadas restantes, con la hora aún sin confirmar
 sql/05_robot.sql      lo que usa el robot de la convocatoria
+sql/06_avisos.sql     los avisos por correo (el correo, cifrado)
 sql/99_autoprueba.sql prueba de que todo funciona; no deja rastro
 data/seed.json        los mismos datos en JSON, para referencia
 ```
@@ -309,6 +360,14 @@ data/seed.json        los mismos datos en JSON, para referencia
   no vale con cambiar la hora del móvil ni trastear la página. Lo mismo con la
   convocatoria: la lista de convocados se valida en el servidor.
 - Las alineaciones ajenas **no salen** de la base de datos hasta el cierre.
+- El correo de cada uno se guarda **cifrado** y ninguna función de la web lo
+  devuelve: ni al interesado, ni al administrador, que solo ve `j***@gmail.com`.
+  Solo lo descifra el proceso que manda el aviso, con la cadena de conexión
+  completa. Protege de lo que puede pasar de verdad (que se escape por la web o
+  por una copia de la tabla), no de quien tenga las llaves de la base de datos
+  entera. La llave vive en la fila `email_clave` de la tabla `config`: **si se
+  borra, los correos guardados ya no se pueden descifrar** y hay que volver a
+  pedirlos.
 
 ## Datos de partida
 

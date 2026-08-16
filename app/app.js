@@ -225,7 +225,12 @@ async function pintarAlineacion() {
   const conv = j.convocatoria && j.convocatoria.length ? j.convocatoria : null;
   const sobran = conv ? S.picks.filter(id => !conv.includes(id)) : [];
 
+  // la primera vez que entras, la pregunta de los avisos va arriba del todo;
+  // después vive al final, junto a la salida de sesión
+  const preguntar = !S.sesion.avisos_preguntado;
+
   v.innerHTML = `
+    ${preguntar ? avisosHTML() : ""}
     <div class="tarjeta">
       <p class="cuando">Próximo partido</p>
       <p class="partido">Jornada ${j.numero} · ${rotulo(j)}</p>
@@ -262,7 +267,60 @@ async function pintarAlineacion() {
       </div>`}
     </div>
 
+    ${preguntar ? "" : avisosHTML()}
+
     <p class="pie"><button class="enlace" id="btn-salir">Salir de la sesión de ${esc(S.sesion.nombre)}</button></p>`;
+}
+
+/* Avisos por correo. La primera vez que entras se te pregunta arriba del todo;
+   una vez contestado (sea que sí o que no), la tarjeta se queda abajo para
+   poder cambiarlo cuando quieras.
+
+   El correo nunca vuelve del servidor: lo único que se sabe aquí es la pista
+   («j***@gmail.com»), así que el campo va siempre vacío y con la pista de
+   marcador de posición. */
+function avisosHTML() {
+  const s = S.sesion;
+  const pista = s.email_pista || null;
+  const primera = !s.avisos_preguntado;
+
+  const estado = s.avisos && pista
+    ? aviso(`Avisos encendidos: si tres horas antes del partido no has enviado tu once, te escribimos a ${esc(pista)}.`, "ok")
+    : pista
+      ? aviso(`Tienes puesto el correo ${esc(pista)}, pero los avisos están apagados: no te va a llegar nada.`)
+      : aviso("No tienes avisos puestos: no te va a llegar ningún correo.");
+
+  return `<div class="tarjeta">
+    <h2>${primera ? "¿Te avisamos si se te olvida?" : "Avisos por correo"}</h2>
+    <p>Si tres horas antes del partido no has enviado tu alineación, te llega un correo
+       recordándotelo. Nada más: ni resultados, ni clasificaciones, ni nada que no sea eso.</p>
+    ${primera ? "" : estado}
+    <label for="inp-email">Tu correo</label>
+    <input id="inp-email" type="email" inputmode="email" autocomplete="email"
+           placeholder="${pista ? esc(pista) : "nombre@correo.com"}">
+    <p class="cuando" style="margin-top:6px">Se guarda cifrado y no sale de la base de datos:
+       ni aparece en la web, ni lo ve nadie del grupo, ni el administrador — él solo ve
+       ${esc(pista || "j***@correo.com")}. Solo se usa para mandarte ese aviso.</p>
+    <div id="msg-avisos"></div>
+    <p style="margin-top:14px">
+      <button class="principal" id="btn-avisos">${
+        s.avisos ? "Cambiar mi correo" : pista ? "Encender los avisos" : "Avisadme"}</button>
+      ${primera ? `<button id="btn-avisos-no">Ahora no</button>` : ""}
+      ${!primera && s.avisos ? `<button id="btn-avisos-off">Apagar los avisos</button>` : ""}
+      ${!primera && pista ? `<button id="btn-avisos-quitar">Borrar mi correo</button>` : ""}
+    </p>
+  </div>`;
+}
+
+/* Guarda lo que sea y vuelve a pintar. El mensaje se escribe DESPUÉS de
+   repintar: al revés se pierde. */
+async function guardarAvisos(args, exito) {
+  const r = await API.rpc("api_avisos", { p_token: S.token, ...args });
+  if (!r.ok) { $("#msg-avisos").innerHTML = aviso(r.error, "error"); return; }
+  await cargarEstado();
+  await pintarAlineacion();
+  const caja = $("#msg-avisos");
+  if (caja) caja.innerHTML = aviso(exito(r), "ok");
 }
 
 function loginHTML() {
@@ -596,13 +654,17 @@ async function pintarAdmin() {
   <div class="tarjeta">
     <h2>Participantes</h2>
     <div class="tabla-scroll"><table>
-      <thead><tr><th>Nombre</th><th>PIN</th><th></th></tr></thead>
+      <thead><tr><th>Nombre</th><th>PIN</th><th>Avisos</th><th></th></tr></thead>
       <tbody>${(S.estadoAdm.participantes || []).map(p => `<tr>
         <td>${esc(p.nombre)}</td>
         <td>${p.tiene_pin ? "puesto" : "<span class='no-participo'>sin poner</span>"}</td>
+        <td>${p.avisos && p.email_pista ? esc(p.email_pista)
+              : `<span class='no-participo'>${p.email_pista ? "apagados" : "no"}</span>`}</td>
         <td>${p.tiene_pin ? `<button class="menor" data-reset-pin="${p.id}" data-nombre="${esc(p.nombre)}">Reiniciar PIN</button>` : ""}</td>
       </tr>`).join("")}</tbody>
     </table></div>
+    <p class="cuando">En «Avisos», el correo de cada uno tal y como puedes verlo: nunca entero.
+       Lo pone y lo quita cada cual desde su pantalla; tú no puedes cambiarlo.</p>
     <div class="fila" style="margin-top:12px">
       <div><label for="adm-part">Añadir participante</label><input id="adm-part" placeholder="Nombre"></div>
       <div style="flex:0"><button id="btn-part">Añadir</button></div>
@@ -769,6 +831,35 @@ document.addEventListener("click", async ev => {
 
     if (t.id === "btn-entrar")  { await entrar(); return; }
     if (t.id === "btn-guardar") { await guardarAlineacion(); return; }
+
+    // --- avisos por correo ---
+    if (t.id === "btn-avisos") {
+      const email = $("#inp-email").value.trim();
+      // sin escribir nada solo se puede encender lo que ya hubiera guardado
+      if (!email && !S.sesion.email_pista) {
+        $("#msg-avisos").innerHTML = aviso("Escribe tu correo para que podamos avisarte.", "error");
+        return;
+      }
+      await guardarAvisos({ p_email: email || null, p_avisos: true },
+        r => `Listo. Te avisaremos a ${r.email_pista} tres horas antes de cada partido, si te falta la alineación.`);
+      return;
+    }
+    if (t.id === "btn-avisos-no") {
+      await guardarAvisos({ p_email: null, p_avisos: false },
+        () => "De acuerdo, no te avisamos. Si cambias de idea, esta tarjeta se queda aquí abajo.");
+      return;
+    }
+    if (t.id === "btn-avisos-off") {
+      await guardarAvisos({ p_email: null, p_avisos: false },
+        () => "Avisos apagados. Tu correo se queda guardado por si quieres volver a encenderlos.");
+      return;
+    }
+    if (t.id === "btn-avisos-quitar") {
+      if (!confirm("¿Borrar tu correo? Dejarás de recibir avisos y tendrás que volver a escribirlo si los quieres.")) return;
+      await guardarAvisos({ p_email: "", p_avisos: false }, () => "Correo borrado.");
+      return;
+    }
+
     if (t.id === "btn-salir") {
       await API.rpc("api_logout", { p_token: S.token }).catch(() => {});
       S.token = null; S.sesion = null; S.jornadaMia = null; S.picks = []; S.guardado = [];
@@ -980,6 +1071,7 @@ document.addEventListener("change", async ev => {
 
 document.addEventListener("keydown", ev => {
   if (ev.key === "Enter" && ev.target.id === "inp-pin") $("#btn-entrar")?.click();
+  if (ev.key === "Enter" && ev.target.id === "inp-email") $("#btn-avisos")?.click();
   if (ev.key === "Enter" && ev.target.id === "adm-pass") $("#btn-admin-entrar")?.click();
 });
 

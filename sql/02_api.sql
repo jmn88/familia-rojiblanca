@@ -65,7 +65,11 @@ set search_path = public, extensions, pg_temp as $$
     'ahora', now(),
     'participantes', (
       select coalesce(json_agg(json_build_object(
-               'id', id, 'nombre', nombre, 'tiene_pin', pin_hash is not null)
+               'id', id, 'nombre', nombre, 'tiene_pin', pin_hash is not null,
+               -- quien tiene avisos por correo solo lo ve el administrador, y
+               -- aun asi nunca el correo entero: la pista y nada mas
+               'avisos', case when f_es_admin(p_token) then avisos end,
+               'email_pista', case when f_es_admin(p_token) then email_pista end)
              order by nombre), '[]'::json)
       from participantes where activo),
     'jugadores', (
@@ -91,7 +95,12 @@ set search_path = public, extensions, pg_temp as $$
       from jornadas),
     'sesion', (
       select json_build_object('participante_id', s.participante_id, 'es_admin', s.es_admin,
-                               'nombre', p.nombre)
+                               'nombre', p.nombre,
+                               -- tus avisos por correo: si estan encendidos, la
+                               -- pista de tu direccion y si ya se te pregunto
+                               'avisos', coalesce(p.avisos, false),
+                               'avisos_preguntado', coalesce(p.avisos_preguntado, false),
+                               'email_pista', p.email_pista)
       from sesiones s left join participantes p on p.id = s.participante_id
       where s.token = p_token and s.expira > now())
   )

@@ -65,6 +65,10 @@ navegador.
   elegir. A quien ya hubiera enviado un once con alguno, se le avisa (su
   alineación sigue contando, ver «Decisiones»).
 - Cuenta atrás hasta el cierre, y aviso si LaLiga aún no ha confirmado la hora.
+- **Avisos por correo**: la primera vez que entras se te pregunta si quieres que
+  te recuerden la alineación (con un «Ahora no» que no vuelve a insistir).
+  Después, la tarjeta se queda al final para cambiar el correo, apagarlo o
+  borrarlo. Ver «Los robots» y «Decisiones».
 
 ### Jornada
 - Antes del cierre: solo se ve **quién ha enviado ya**, nunca qué.
@@ -84,7 +88,8 @@ navegador.
   foto del club y se lee en el propio navegador. Se repasa y se guarda.
 - **Once inicial**: el robot lo deja propuesto y el administrador lo confirma con
   «Usar esta propuesta» + Guardar. También se puede marcar a mano.
-- **Participantes**: alta y reinicio de PIN.
+- **Participantes**: alta y reinicio de PIN, y quién tiene avisos por correo
+  (solo la pista, `j***@gmail.com`: el administrador tampoco lo ve entero).
 - **Plantilla**: altas, bajas, dorsales y posiciones.
 
 ## Decisiones ya tomadas (no volver a preguntarlas)
@@ -150,9 +155,31 @@ navegador.
   calcula en el navegador con `kickoff`, sin estado nuevo) y enseña el último
   intento del robot (`once_robot_intento` / `once_robot_motivo`).
 
+### Los avisos por correo (issue #3)
+- **Voluntario y de cada uno.** Se le pregunta la primera vez que entra
+  (`avisos_preguntado`, para no volver a insistir a quien dijo que no).
+- **El correo se guarda cifrado** con `pgp_sym_encrypt` y la llave vive en la
+  fila `email_clave` de `config`. Ninguna función `api_*` lo devuelve nunca: solo
+  sale `email_pista` (`j***@gmail.com`), que se guarda aparte para poder
+  enseñarla sin descifrar. Ni el administrador lo ve entero.
+  **Si se borra `email_clave`, los correos guardados son ilegibles.**
+  Esto protege de que el correo se escape por la web o por una copia de la tabla,
+  no de quien tenga la cadena de conexión — con esa se llega a todo, y no hay
+  forma de evitarlo si el aviso tiene que salir solo. Está asumido y dicho.
+- **El envío va por Brevo** (decisión del usuario, agosto 2026, frente a un Gmail
+  con contraseña de aplicación): 300 correos al día gratis y no depende de su
+  cuenta personal de Google. Dos secrets: `BREVO_API_KEY` y `BREVO_REMITENTE`.
+- **No se manda si ya se conoce el once** (`once_oficial` o `once_propuesto`):
+  a esas alturas el plazo está cerrado de hecho y el aviso solo fastidiaría.
+- **Un aviso por persona y jornada** (tabla `recordatorios`), apuntado
+  **después** de que el correo salga: si falla, se reintenta al cuarto de hora.
+- **Se manda aunque la hora no esté confirmada**, diciéndolo en el propio correo.
+  `hora_confirmada` es una marca que pone el admin a mano, y si se le olvida el
+  partido se juega igual: callarse sería peor.
+
 ## Los robots
 
-Dos procesos de GitHub, cada uno en su fichero, que van solos. **Quién decide si
+Tres procesos de GitHub, cada uno en su fichero, que van solos. **Quién decide si
 toca actuar es SQL, no el cron**: fuera de su ventana, el proceso se va de vacío
 en segundos.
 
@@ -160,6 +187,7 @@ en segundos.
 |---|---|---|---|
 | `convocatoria.yml` | 30 min | desde 1 día antes, con el plazo abierto | Carga la convocatoria |
 | `once.yml` | 5 min | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
+| `avisos.yml` | 15 min | desde 3 h antes, con el plazo abierto y sin once | Recuerda por correo a quien no ha enviado |
 
 - Los datos salen de **la web del club**, que publica ambas cosas en texto dentro
   del HTML servido: la convocatoria en «La lista completa la forman: …» y el once
@@ -207,6 +235,7 @@ app/app.js            toda la lógica de la interfaz
 robot/comun.py        pedir páginas del club y casar nombres con la plantilla
 robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
 robot/once.py         busca el once inicial y lo deja PROPUESTO, sin publicar
+robot/avisos.py       manda por Brevo los recordatorios que decide SQL
 robot/orden_sql.py    arma la orden de SQL, ya escapada, que guarda el resultado
 css/estilos.css
 sql/01_esquema.sql    tablas y cierre de permisos
@@ -214,6 +243,7 @@ sql/02_api.sql        funciones (PIN, cierre, puntuación, admin)
 sql/03_datos.sql      participantes, plantilla y jornada 1
 sql/04_calendario.sql jornadas 2 a 38 del sorteo oficial, con hora tentativa
 sql/05_robot.sql      funciones del robot; cerradas al rol anónimo a propósito
+sql/06_avisos.sql     avisos por correo: correo cifrado y a quién toca avisar
 sql/99_autoprueba.sql prueba de extremo a extremo; no deja rastro
 data/seed.json        los mismos datos de partida en JSON, como referencia
 ```
@@ -268,9 +298,29 @@ ejecución deshace ese fichero entero.
   aviso *después* de `pintarAdmin()`, no antes.
 - **En YAML, un heredoc dentro de `run: |` rompe la indentación.** Si necesitas
   varias líneas de Python, ponlo en un fichero de `robot/`.
+- **`02_api.sql` vuelve a dar permisos a TODAS las funciones cada vez que se
+  aplica** (`grant execute on all functions ... to anon`). Por eso una función
+  `robot_*` creada en un fichero posterior al 05 se quedaba abierta al rol
+  anónimo hasta que el 05 volvía a pasar, y su comprobación final petaba en la
+  siguiente ejecución. Arreglado: el 05 ya no lleva una lista escrita a mano,
+  sino un bucle que las retira todas. **Una función nueva del robot en un fichero
+  posterior tiene que retirarse los permisos ella misma**, además.
+- **Una función marcada `stable` no puede escribir.** `f_clave_email()` creaba la
+  llave si no existía, y la llama `robot_avisos_pendientes()`, que es `stable`:
+  PostgreSQL lo rechaza. Ahora la llave solo la lee, y de crearla se encarga
+  `api_avisos`, que sí escribe.
+- **Nada de horas en Python.** `zoneinfo` necesita la base de datos de zonas
+  horarias del sistema, que en Windows no existe (así que ni se puede probar aquí)
+  y en otros sitios es una dependencia más. Las horas ya vienen pasadas a la de
+  Madrid y escritas desde SQL (`kickoff_local`, `cierre_local`, `hoy`).
+- **Los registros de Actions de un repositorio público los lee cualquiera.** El
+  JSON de `robot_avisos_pendientes()` lleva los correos descifrados: `avisos.yml`
+  no lo imprime nunca, y `robot/avisos.py` tapa cualquier dirección que pudiera
+  venir en un mensaje de error de Brevo. No añadas un `cat pendientes.json`.
 - **Puede haber más de una sesión de Claude trabajando en esta carpeta.** Ya pasó:
   una sesión hizo commit del trabajo a medias de la otra. Si ves cambios que no
-  son tuyos, para y pregunta.
+  son tuyos, para y pregunta. (Vuelve a pasar: en agosto de 2026 otra sesión tenía
+  levantado el servidor de pruebas en el 8777.)
 
 ## Estado actual
 
@@ -284,6 +334,15 @@ Todo lo descrito arriba está **funcionando y verificado en vivo**:
   lectura. Los dos robots se probaron con el texto real del club.
 - Jornada 1 (Sevilla 15/08/2026) jugada, con once oficial puesto y puntos
   calculados.
+
+**Los avisos por correo (issue #3) están escritos pero NO en producción**
+(agosto de 2026). Comprobado en local: toda la pantalla de avisos, contra la
+demo y en el navegador (poner el correo, rechazarlo por malo, «Ahora no», apagar,
+volver a encender, borrar, y que no se vuelva a preguntar al reentrar); y el
+recorrido entero de `robot/avisos.py` fingiendo el envío, incluido que un fallo
+no se apunte y que los correos no salgan en los registros. **Sin comprobar
+todavía**: el SQL (no hay base de datos local — lo dirá la autoprueba) y un envío
+de verdad por Brevo.
 
 ## Pendiente
 
@@ -301,6 +360,11 @@ Todo lo descrito arriba está **funcionando y verificado en vivo**:
 5. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
+6. **Los avisos por correo, por estrenar**: falta subirlos a producción, dar de
+   alta los dos secrets de Brevo (`BREVO_API_KEY` y `BREVO_REMITENTE`, explicados
+   en el README) y ver el primer envío de verdad. Sin esos secrets el proceso no
+   falla mientras no haya nadie a quien avisar; en cuanto lo haya, se pone en
+   rojo y lo dice.
 
 ## Cómo mantener este fichero
 

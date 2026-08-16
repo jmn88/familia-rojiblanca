@@ -4,7 +4,7 @@
    La web de verdad (index.html) usa app/api.js y la base de datos real. */
 
 const API = (function () {
-  const CLAVE = "fr_demo_v5";   // al cambiar los datos de ejemplo se sube el número
+  const CLAVE = "fr_demo_v6";   // al cambiar los datos de ejemplo se sube el número
   const dia = 864e5;
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
@@ -21,7 +21,10 @@ const API = (function () {
   function semilla() {
     const jugadores = PLANTILLA.map(([dorsal, nombre, posicion], i) =>
       ({ id: i + 1, dorsal, nombre, posicion, activo: true }));
-    const participantes = NOMBRES.map((nombre, i) => ({ id: i + 1, nombre, pin: null }));
+    // en la demo el correo ni se guarda: solo la pista, que es lo único que la
+    // web de verdad puede llegar a ver
+    const participantes = NOMBRES.map((nombre, i) =>
+      ({ id: i + 1, nombre, pin: null, email_pista: null, avisos: false, avisos_preguntado: false }));
 
     // identificadores de jugador (el orden de PLANTILLA), no dorsales
     const once = [1, 9, 6, 8, 10, 11, 12, 13, 18, 21, 20];   // once "oficial" de ejemplo
@@ -104,7 +107,10 @@ const API = (function () {
       const s = sesion(p_token);
       return {
         ok: true, ahora: new Date().toISOString(),
-        participantes: db.participantes.map(p => ({ id: p.id, nombre: p.nombre, tiene_pin: Boolean(p.pin) })),
+        participantes: db.participantes.map(p => ({
+          id: p.id, nombre: p.nombre, tiene_pin: Boolean(p.pin),
+          avisos: s?.es_admin ? Boolean(p.avisos) : null,
+          email_pista: s?.es_admin ? (p.email_pista || null) : null })),
         jugadores: db.jugadores.filter(g => g.activo || s?.es_admin),
         jornadas: db.jornadas.map(j => ({
           id: j.id, numero: j.numero, rival: j.rival, en_casa: j.en_casa, kickoff: j.kickoff,
@@ -115,9 +121,39 @@ const API = (function () {
           tiene_propuesta: Boolean(j.once_propuesto),
           publicada: Boolean(j.once_oficial)
         })),
-        sesion: s ? { participante_id: s.participante_id, es_admin: Boolean(s.es_admin),
-                      nombre: db.participantes.find(p => p.id === s.participante_id)?.nombre } : null
+        sesion: s ? (() => {
+          const p = db.participantes.find(x => x.id === s.participante_id);
+          return { participante_id: s.participante_id, es_admin: Boolean(s.es_admin),
+                   nombre: p?.nombre,
+                   avisos: Boolean(p?.avisos),
+                   avisos_preguntado: Boolean(p?.avisos_preguntado),
+                   email_pista: p?.email_pista || null };
+        })() : null
       };
+    },
+
+    // mismas reglas que api_avisos de verdad: null = no toca el correo,
+    // cadena vacía = lo borra, y una dirección lo cambia
+    api_avisos: ({ p_token, p_email, p_avisos }) => {
+      const s = sesion(p_token);
+      if (!s || !s.participante_id) return mal("Sesión caducada, vuelve a entrar");
+      const p = db.participantes.find(x => x.id === s.participante_id);
+      const email = (p_email || "").trim();
+
+      p.avisos_preguntado = true;
+      if (p_email !== null && p_email !== undefined && !email) {
+        p.email_pista = null; p.avisos = false;
+      } else if (email) {
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) {
+          return mal("Ese correo no tiene buena pinta. Repásalo, tiene que ser del estilo nombre@correo.com");
+        }
+        p.email_pista = email[0] + "***@" + email.split("@")[1];
+        p.avisos = p_avisos !== false;
+      } else {
+        p.avisos = Boolean(p_avisos) && Boolean(p.email_pista);
+      }
+      salvar();
+      return ok({ avisos: p.avisos, email_pista: p.email_pista });
     },
 
     api_login: ({ p_participante, p_pin }) => {
