@@ -46,9 +46,16 @@ Trabaja como se ha trabajado hasta ahora, que ha funcionado bien:
   que sea porque lo has visto funcionar.
 - **Cuenta los fallos propios sin adornos.** Ha habido varios (mira «Trampas
   conocidas»); decirlos claramente y arreglarlos es lo que se espera.
-- **No subas a producción sin que lo pida.** Subir a `main` despliega la web *y*
-  aplica el SQL a la base de datos de verdad. Cuando el usuario diga «no lo pases
-  a prod», deja el commit hecho en local y avísale del comando para subirlo.
+- **Código y SQL van por pull request; la documentación, directa a `main`.**
+  Decisión del usuario, agosto de 2026. Subir a `main` despliega la web *y*
+  aplica el SQL a la base de datos de verdad, así que todo lo que toque `sql/`,
+  `app/`, `robot/` o los workflows se queda en una rama y lo fusiona él: déjale
+  el enlace del PR con el título y la descripción ya puestos. En cambio, lo que
+  solo cambia `CLAUDE.md` o el `README.md` súbelo tú sin preguntar — no despliega
+  nada y, esperando un PR propio, acababa colándose en el siguiente y ensuciando
+  el diff (pasó dos veces).
+- Y si él dice «no lo pases a prod», eso manda sobre todo lo anterior: commit en
+  local y le avisas del comando.
 
 ## Qué sabe hacer la web hoy
 
