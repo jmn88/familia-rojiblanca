@@ -354,17 +354,18 @@ datos real con las nueve comprobaciones nuevas (el correo cifrado, que no salga
 en claro por `api_estado` ni `api_jornada`, a quién toca avisar, que no se avise
 dos veces); toda la pantalla de avisos en el navegador contra la demo; el
 recorrido de `robot/avisos.py` fingiendo el envío; y la web publicada carga.
-Jesús ya tiene su correo puesto y los secrets de Brevo están dados de alta.
-**Sin estrenar todavía: un envío de verdad.**
+Jesús tiene su correo puesto y los secrets de Brevo dados de alta. **El envío
+por Brevo funciona de verdad**: el 21 de agosto de 2026 salió el primer correo
+(el de «te falta la alineación»), adelantando a mano el `kickoff` de la jornada 2
+y lanzando el proceso desde Actions. Llegó.
 
-**El aviso de la convocatoria (issue #5) está escrito pero NO en producción**
-(agosto de 2026). Reutiliza entero lo del #3: misma tabla, mismo proceso, mismo
-correo cifrado; lo nuevo es la columna `tipo` de `recordatorios` y la segunda
-mitad de `robot_avisos_pendientes()`. Comprobado en local: los tres correos que
-puede mandar (con jugadores tuyos fuera de la convocatoria, sin alineación
-enviada, y con todo en orden), que el fallo de uno no se apunte y que ningún
-correo acabe en los registros. **Sin comprobar**: el SQL, que lo dirá la
-autoprueba.
+**El aviso de la convocatoria (issue #5) también está en producción** desde el 21
+de agosto de 2026 (PR #6, commit `f860fd6`), con la autoprueba pasada contra la
+base de datos real. Reutiliza entero lo del #3: misma tabla, mismo proceso, mismo
+correo cifrado; lo nuevo es la columna `tipo` de `recordatorios` (con su
+migración de la clave primaria) y la segunda mitad de
+`robot_avisos_pendientes()`. **Lo único sin estrenar es un envío de verdad de esa
+clase**, que saldrá solo con la primera convocatoria que se cargue.
 
 ## Pendiente
 
@@ -382,14 +383,16 @@ autoprueba.
 5. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
-6. **El primer envío de verdad de un aviso**, que aún no ha salido ninguno.
-   Vale para las dos clases.
-   Para probarlo sin esperar al partido hay que adelantar el `kickoff` de la
+6. **Ver el primer aviso de convocatoria de verdad**: saldrá solo en cuanto se
+   cargue una convocatoria con alguien que tenga los avisos encendidos.
+   Para probar un aviso sin esperar al partido: adelantar el `kickoff` de la
    próxima jornada desde Admin (a unas 2 horas vista: menos de 3 para que entre
    en la ventana, pero más de 1h30 para no despertar al robot del once), lanzar
    el proceso a mano desde Actions, y luego **devolver la hora a su sitio y
    borrar la fila de `recordatorios`** — si no, esa persona se queda sin el aviso
-   de verdad de esa jornada.
+   de verdad de esa jornada. Ya pasó: hubo que borrarla a mano.
+7. **Solo Jesús tiene avisos por correo.** A los demás se les pregunta la primera
+   vez que entren en la web; hasta entonces no reciben nada.
 
 ## Cómo mantener este fichero
 
