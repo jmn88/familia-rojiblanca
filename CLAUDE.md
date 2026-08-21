@@ -373,6 +373,9 @@ migración de la clave primaria) y la segunda mitad de
 `robot_avisos_pendientes()`. **Lo único sin estrenar es un envío de verdad de esa
 clase**, que saldrá solo con la primera convocatoria que se cargue.
 
+La ventana de la convocatoria (10:00 de la víspera, PR #8) también está
+aplicada y con la autoprueba pasada.
+
 ## Pendiente
 
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
