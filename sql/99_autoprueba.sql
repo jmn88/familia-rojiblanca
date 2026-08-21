@@ -98,13 +98,14 @@ begin
   end if;
 
   select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
-   where (x->>'participante_id')::int = v_part and x->>'email' = v_correo;
+   where (x->>'participante_id')::int = v_part
+     and x->>'tipo' = 'alineacion' and x->>'email' = v_correo;
   if v_n <> 1 then
     fallos := fallos || E'\n- no se avisaria a quien tiene el partido encima y no ha enviado nada';
   end if;
 
   -- una vez mandado, no se manda otra vez
-  r := robot_aviso_enviado(v_jor, v_part);
+  r := robot_aviso_enviado(v_jor, v_part, 'alineacion');
   select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
    where (x->>'participante_id')::int = v_part;
   if v_n <> 0 then fallos := fallos || E'\n- el mismo aviso se mandaria dos veces'; end if;
@@ -204,6 +205,53 @@ begin
   if (r->>'afectadas')::int is distinct from 1 then
     fallos := fallos || E'\n- no avisa de la alineacion que se queda fuera de la convocatoria';
   end if;
+
+  -- ------------------------------------- el aviso de «ya hay convocatoria»
+  -- ZZ Prueba tiene avisos encendidos, ya mando su once y en el lleva a uno que
+  -- se ha quedado sin convocar: el correo tiene que salir y tiene que decirselo.
+  select nombre into v_pk from jugadores where id = v_picks[11];
+
+  select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part
+     and x->>'tipo' = 'convocatoria'
+     and (x->>'enviada')::boolean
+     and json_array_length(x->'fuera') = 1
+     and x->'fuera'->>0 = v_pk;
+  if v_n <> 1 then
+    fallos := fallos || E'\n- el aviso de la convocatoria no sale como debe (tendria que '
+                     || 'decirle que ' || coalesce(v_pk, '?') || ' se le ha quedado fuera)';
+  end if;
+
+  -- y tiene que llevar la lista de convocados, que es lo que se pone en el correo
+  select json_array_length(robot_avisos_pendientes()->'jornada'->'convocados') into v_n;
+  if v_n is distinct from array_length(v_conv, 1) then
+    fallos := fallos || E'\n- el aviso de la convocatoria no lleva la lista de convocados';
+  end if;
+
+  -- A quien no ha enviado nada le tocarian los dos avisos a la vez. Solo sale el
+  -- de la convocatoria: el de la alineacion espera al siguiente pase, que dos
+  -- correos de golpe son uno de mas.
+  delete from alineaciones where jornada_id = v_jor and participante_id = v_part;
+
+  select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part and x->>'tipo' = 'alineacion';
+  if v_n <> 0 then
+    fallos := fallos || E'\n- manda a la vez el aviso de la convocatoria y el de la alineacion';
+  end if;
+
+  perform robot_aviso_enviado(v_jor, v_part, 'convocatoria');
+
+  select count(*) into v_n from json_array_elements(robot_avisos_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part;
+  if v_n <> 1 then
+    fallos := fallos || E'\n- tras avisar de la convocatoria no queda pendiente el de la alineacion';
+  end if;
+
+  -- se deja todo como estaba: la alineacion vuelve a su sitio (las
+  -- comprobaciones de puntuacion de mas abajo se fian de ella) y sin
+  -- recordatorios a medias
+  delete from recordatorios where jornada_id = v_jor;
+  insert into alineaciones (jornada_id, participante_id, picks) values (v_jor, v_part, v_picks);
 
   r := api_guardar(v_tok, v_jor, v_picks);
   if (r->>'ok')::boolean then fallos := fallos || E'\n- ¡deja alinear a un jugador sin convocar!'; end if;

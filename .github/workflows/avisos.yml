@@ -1,13 +1,18 @@
-# Recuerda por correo a quien no haya mandado su alineación.
+# Los avisos por correo, de las dos clases que hay:
 #
-# Mira cada cuarto de hora. Quien decide a quién hay que avisar es la base de
-# datos (robot_avisos_pendientes): solo contesta desde tres horas antes del
-# partido, con el plazo abierto y el once aún sin conocerse, y solo con los que
-# tienen los avisos encendidos y no han enviado nada. El resto del tiempo esto
-# se va de vacío en unos segundos.
+#   - «ya hay convocatoria», en cuanto se sabe a quién ha convocado el Sevilla,
+#     con la lista, el rival y la hora. Va a todo el que tenga avisos.
+#   - «te falta la alineación», tres horas antes del partido, solo a quien
+#     sigue sin enviar su once.
 #
-# Un aviso por persona y jornada: en cuanto sale el correo se apunta, y no se
-# repite. Si el envío falla, no se apunta y se reintenta en el siguiente pase.
+# Mira cada cuarto de hora. Quien decide a quién hay que escribir, y de qué, es
+# la base de datos (robot_avisos_pendientes): hace falta que sea el próximo
+# partido, con el plazo abierto y el once aún sin conocerse. El resto del tiempo
+# esto se va de vacío en unos segundos.
+#
+# Un aviso de cada clase por persona y jornada: en cuanto sale el correo se
+# apunta, y no se repite. Si el envío falla, no se apunta y se reintenta en el
+# siguiente pase.
 #
 # OJO CON LOS REGISTROS: la respuesta de la base de datos lleva los correos en
 # claro (hay que descifrarlos para poder mandarlos) y los registros de Actions
@@ -19,10 +24,9 @@
 # BREVO_REMITENTE. Están explicados en el README. Mientras no haya nadie a quien
 # avisar no hacen falta: el proceso ni los mira.
 #
-# Para lanzarlo a mano: pestaña Actions -> Avisar a quien le falte la alineación
-# -> Run workflow.
+# Para lanzarlo a mano: pestaña Actions -> Avisos por correo -> Run workflow.
 
-name: Avisar a quien le falte la alineación
+name: Avisos por correo
 
 on:
   schedule:
@@ -75,7 +79,7 @@ jobs:
             psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden.sql > /dev/null
 
             {
-              echo "## Avisados para la jornada $(leer jornada)"
+              echo "## Avisos mandados para la jornada $(leer jornada)"
               echo ""
               python3 -c "import json; [print('- '+n) for n in json.load(open('resultado.json'))['nombres']]"
             } >> "$GITHUB_STEP_SUMMARY"

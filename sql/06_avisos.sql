@@ -104,18 +104,21 @@ begin
 end $$;
 
 -- ------------------------------------------------------------- el proceso ---
--- A quien hay que avisar ahora mismo. Como en los otros robots, quien decide es
--- SQL: fuera de la ventana esto devuelve la lista vacia y el proceso de GitHub
--- se va en unos segundos sin mandar nada.
+-- A quien hay que escribir ahora mismo, y de que. Como en los otros robots,
+-- quien decide es SQL: fuera de la ventana esto devuelve la lista vacia y el
+-- proceso de GitHub se va en unos segundos sin mandar nada.
 --
--- Se avisa cuando se dan todas estas:
---   * es el proximo partido (el unico al que se puede alinear) y el plazo sigue
---     abierto;
---   * faltan menos de 3 horas para el inicio;
---   * no se conoce el once todavia (si se conoce, el plazo ya esta cerrado de
---     hecho y el aviso solo serviria para fastidiar);
---   * esa persona tiene avisos encendidos, correo puesto, ninguna alineacion
---     enviada y ningun aviso mandado ya para esta jornada.
+-- Hay dos clases de aviso, y las dos salen de aqui:
+--
+--   'convocatoria' en cuanto se sabe a quien ha convocado el Sevilla. Va a todo
+--                  el que tenga avisos, haya enviado su once o no: al que no lo
+--                  ha enviado le sirve de recordatorio, y al que si, para
+--                  enterarse de si le han dejado fuera a alguno de los suyos.
+--   'alineacion'   faltan menos de 3 horas y esa persona sigue sin enviar.
+--
+-- En los dos casos hace falta que sea el proximo partido (el unico al que se
+-- puede alinear), que el plazo siga abierto y que no se conozca el once: si se
+-- conoce, el plazo ya esta cerrado de hecho y el aviso solo fastidiaria.
 
 create or replace function robot_avisos_pendientes()
 returns json language sql stable security definer
@@ -125,8 +128,36 @@ set search_path = public, extensions, pg_temp as $$
      where id = f_jornada_proxima()
        and once_oficial is null
        and once_propuesto is null
-       and now() >= kickoff - interval '3 hours'
-  )
+  ),
+  gente as (
+    select p.id, p.nombre, p.email_cifrado
+      from participantes p
+     where p.activo and p.avisos and p.email_cifrado is not null
+  ),
+  conv as (
+    select g.*, 'convocatoria'::text as tipo, j.id as jornada_id
+      from gente g, j
+     where j.convocatoria is not null
+       and not exists (select 1 from recordatorios r
+                        where r.jornada_id = j.id and r.participante_id = g.id
+                          and r.tipo = 'convocatoria')
+  ),
+  alin as (
+    select g.*, 'alineacion'::text as tipo, j.id as jornada_id
+      from gente g, j
+     where now() >= j.kickoff - interval '3 hours'
+       and not exists (select 1 from alineaciones a
+                        where a.jornada_id = j.id and a.participante_id = g.id)
+       and not exists (select 1 from recordatorios r
+                        where r.jornada_id = j.id and r.participante_id = g.id
+                          and r.tipo = 'alineacion')
+       -- Si en este mismo pase le toca tambien el de la convocatoria, ese va
+       -- primero y este espera al siguiente cuarto de hora: dos correos a la vez
+       -- son un correo de mas, y el de la convocatoria ya le dice que todavia no
+       -- ha enviado nada.
+       and not exists (select 1 from conv c where c.id = g.id)
+  ),
+  todos as (select * from conv union all select * from alin)
   select json_build_object(
     'ahora', now(),
     -- Las horas van tambien pasadas a la de Madrid y ya escritas, para que el
@@ -142,32 +173,53 @@ set search_path = public, extensions, pg_temp as $$
                                  to_char(kickoff at time zone 'Europe/Madrid', 'YYYY-MM-DD HH24:MI'),
                                'cierre_local',
                                  to_char(f_cierre_efectivo(cierre, prorroga_hasta)
-                                         at time zone 'Europe/Madrid', 'YYYY-MM-DD HH24:MI'))
+                                         at time zone 'Europe/Madrid', 'YYYY-MM-DD HH24:MI'),
+                               -- los convocados, para poder ponerlos en el correo
+                               'convocados', (
+                                 select coalesce(json_agg(json_build_object(
+                                          'dorsal', g.dorsal, 'nombre', g.nombre)
+                                        order by array_position(array['POR','DEF','MED','DEL'], g.posicion),
+                                                 g.dorsal), '[]'::json)
+                                   from jugadores g where g.id = any(j.convocatoria)))
         from j),
     'avisos', (
       select coalesce(json_agg(json_build_object(
-               'participante_id', p.id,
-               'nombre', p.nombre,
-               'email', pgp_sym_decrypt(p.email_cifrado, f_clave_email()))
-             order by p.nombre), '[]'::json)
-        from participantes p, j
-       where p.activo and p.avisos and p.email_cifrado is not null
-         and not exists (select 1 from alineaciones a
-                          where a.jornada_id = j.id and a.participante_id = p.id)
-         and not exists (select 1 from recordatorios r
-                          where r.jornada_id = j.id and r.participante_id = p.id))
+               'participante_id', t.id,
+               'nombre',  t.nombre,
+               'tipo',    t.tipo,
+               'email',   pgp_sym_decrypt(t.email_cifrado, f_clave_email()),
+               -- si ya mando su once, y a quien tiene puesto que se ha quedado
+               -- sin convocar: con eso el correo le puede decir a cada uno lo suyo
+               'enviada', exists (select 1 from alineaciones a
+                                   where a.jornada_id = t.jornada_id
+                                     and a.participante_id = t.id),
+               'fuera', (
+                 select coalesce(json_agg(g.nombre order by g.nombre), '[]'::json)
+                   from alineaciones a
+                   join jornadas jj on jj.id = a.jornada_id
+                   join jugadores g on g.id = any(a.picks)
+                  where a.jornada_id = t.jornada_id and a.participante_id = t.id
+                    and jj.convocatoria is not null
+                    and not (g.id = any(jj.convocatoria))))
+             order by t.tipo, t.nombre), '[]'::json)
+        from todos t)
   )
 $$;
 
 -- Se apunta DESPUES de que el correo haya salido de verdad: si el envio falla,
 -- no se apunta nada y se vuelve a intentar en el siguiente pase.
-create or replace function robot_aviso_enviado(p_jornada int, p_participante int)
+--
+-- Cambia la firma (le entra el tipo de aviso), asi que hay que retirar la
+-- version antigua: si no, quedarian las dos.
+drop function if exists robot_aviso_enviado(int, int);
+
+create or replace function robot_aviso_enviado(p_jornada int, p_participante int, p_tipo text)
 returns json language plpgsql security definer
 set search_path = public, extensions, pg_temp as $$
 begin
-  insert into recordatorios (jornada_id, participante_id)
-  values (p_jornada, p_participante)
-  on conflict (jornada_id, participante_id) do nothing;
+  insert into recordatorios (jornada_id, participante_id, tipo)
+  values (p_jornada, p_participante, coalesce(nullif(p_tipo, ''), 'alineacion'))
+  on conflict (jornada_id, participante_id, tipo) do nothing;
   return json_build_object('ok', true);
 end $$;
 
@@ -176,10 +228,10 @@ end $$;
 -- cadena de conexion. Como se explica en 05_robot.sql, no basta con quitarselo
 -- a anon: PostgreSQL da execute a PUBLIC en cada funcion nueva y anon lo hereda.
 
-grant  execute on function api_avisos(uuid, text, boolean)  to anon, authenticated;
-revoke execute on function f_clave_email()                  from public, anon, authenticated;
-revoke execute on function robot_avisos_pendientes()        from public, anon, authenticated;
-revoke execute on function robot_aviso_enviado(int, int)    from public, anon, authenticated;
+grant  execute on function api_avisos(uuid, text, boolean)     to anon, authenticated;
+revoke execute on function f_clave_email()                     from public, anon, authenticated;
+revoke execute on function robot_avisos_pendientes()           from public, anon, authenticated;
+revoke execute on function robot_aviso_enviado(int, int, text) from public, anon, authenticated;
 
 -- Y se comprueba, que esto no puede quedarse a medias sin que nadie se entere.
 do $$

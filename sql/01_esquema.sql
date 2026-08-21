@@ -89,14 +89,42 @@ create table if not exists alineaciones (
   constraint picks_11 check (array_length(picks,1) = 11)
 );
 
--- Un aviso por persona y jornada, y no mas: si el proceso se repite (o se lanza
--- a mano), aqui esta la constancia de lo ya enviado.
+-- Un aviso de cada clase por persona y jornada, y no mas: si el proceso se
+-- repite (o se lanza a mano), aqui esta la constancia de lo ya enviado.
+--
+--   'alineacion'   te falta el once y el partido es dentro de 3 horas
+--   'convocatoria' ya se sabe a quien ha convocado el Sevilla
 create table if not exists recordatorios (
   jornada_id      int not null references jornadas(id) on delete cascade,
   participante_id int not null references participantes(id) on delete cascade,
+  tipo            text not null default 'alineacion',
   enviado_en      timestamptz not null default now(),
-  primary key (jornada_id, participante_id)
+  primary key (jornada_id, participante_id, tipo)
 );
+
+-- Para las bases de datos de antes de que hubiera dos clases de aviso: la tabla
+-- nacio con la clave (jornada, participante) y hay que meterle el tipo dentro,
+-- que si no el aviso de la convocatoria taparia al de la alineacion.
+alter table recordatorios add column if not exists tipo text not null default 'alineacion';
+
+do $$
+declare v_cols int;
+begin
+  select count(*) into v_cols
+    from pg_constraint c, unnest(c.conkey) k
+   where c.conrelid = 'recordatorios'::regclass and c.contype = 'p';
+
+  if v_cols <> 3 then
+    alter table recordatorios drop constraint if exists recordatorios_pkey;
+    alter table recordatorios add primary key (jornada_id, participante_id, tipo);
+  end if;
+end $$;
+
+do $$ begin
+  alter table recordatorios add constraint recordatorios_tipo
+    check (tipo in ('alineacion', 'convocatoria'));
+exception when duplicate_object then null;
+end $$;
 
 create table if not exists sesiones (
   token           uuid primary key default gen_random_uuid(),
