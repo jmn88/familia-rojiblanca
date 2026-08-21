@@ -350,6 +350,15 @@ ejecución deshace ese fichero entero.
   palabras (`fichasDe`) y el dorsal es solo un apoyo: manda el apellido.
   **No lo devuelvas a analizar `data.text`.** Para probarlo sin foto está
   `CONVOCATORIA.analizarLectura(data, ancho, plantilla)`.
+- **`sql/04_calendario.sql` NO es la base de datos**: es la semilla de partida, con
+  las horas tentativas de las 21:00. El administrador lleva meses corrigiendo
+  horas desde Admin, así que comparar el calendario del club contra ese fichero da
+  discrepancias que no existen (pasó: se avisó de que la jornada 2 iba cuatro
+  horas desviada cuando estaba perfecta). Para ver lo que hay de verdad, llama a
+  `api_estado` con la clave `anon` de `app/config.js`, igual que hace la web:
+  `POST <SUPABASE_URL>rpc/api_estado` con `{}` y las cabeceras `apikey` y
+  `Authorization: Bearer`. Devuelve las 38 jornadas con su `kickoff` y su
+  `hora_confirmada`.
 - **La marca `unknown_datetime` del calendario del club NO dice si la hora está
   fijada**: venía a `0` en las 37 jornadas, tuvieran hora o no. Lo que sí lo dice
   es que el partido esté publicado a las **00:00**, que es como el club deja los
