@@ -5,6 +5,7 @@
 El club publica la lista de convocados como una noticia, y dentro va en texto:
 
     La lista completa la forman: Odysseas, Fran Gonzalez, Juan Iglesias, ...
+    La convocatoria al completo la conforman: Odysseas, Fran Gonzalez, ...
 
 Asi que no hace falta ni leer la foto ni tocar la API de X (que desde 2026 se
 paga por uso). Se pide la pagina tal cual, se saca esa frase y se cruzan los
@@ -28,16 +29,33 @@ import comun
 # cambiado), y mas vale no tocar nada y que se cargue a mano.
 MINIMO = 14
 
+# El club NO escribe siempre la misma frase, asi que no se busca la frase entera
+# sino el verbo que presenta la lista, y con el la lista va detras de los dos
+# puntos. En la jornada 1 fue «La lista completa la forman:» y en la 2 «La
+# convocatoria al completo la conforman:»; buscando «lista completa la forman»
+# al pie de la letra, la segunda se quedaba sin cargar.
+#
+# Se puede permitir ser ancho: si la frase pescada no es la que era, los nombres
+# no casaran con la plantilla y MINIMO impide que se guarde nada.
+FRASES = (
+    r"(?:lista|convocatoria|relaci[oó]n)[^:<]{0,60}?"
+    r"(?:conforman|forman|componen|integran)[^:<]{0,20}:",
+    r"(?:convocados|citados)[^:<]{0,40}?son[^:<]{0,20}:",
+)
+
 
 def lista_de(html):
-    """Los nombres que van detras de «La lista completa la forman:»."""
+    """Los nombres que van detras de la frase que presenta la convocatoria."""
     texto = comun.desescapar(html)
-    trozo = re.search(r"lista completa la forman[^:]{0,40}:(.{0,900}?)</p", texto,
-                      re.IGNORECASE | re.DOTALL)
-    if not trozo:
-        return []
-    limpio = comun.sin_etiquetas(trozo.group(1)).split(".")[0]
-    return comun.trocear_nombres(limpio)
+    for frase in FRASES:
+        trozo = re.search(frase + r"(.{0,900}?)</p", texto, re.IGNORECASE | re.DOTALL)
+        if not trozo:
+            continue
+        limpio = comun.sin_etiquetas(trozo.group(1)).split(".")[0]
+        nombres = comun.trocear_nombres(limpio)
+        if nombres:
+            return nombres
+    return []
 
 
 def main():

@@ -157,7 +157,10 @@ navegador.
   publica tras la rueda de prensa del entrenador, que es la mañana anterior al
   partido, así que con la regla vieja se empezaba a mirar tarde en los partidos de
   tarde-noche. La hora se calcula en SQL sobre `kickoff`, con su huso, así que el
-  cambio de hora no la mueve.
+  cambio de hora no la mueve. Comprobado con datos reales: la del Rayo (J1) se
+  publico a las 16:19 de la vispera y la del Athletic (J2) a las 09:59:59, un
+  segundo antes de que se abriera la ventana. Varia mucho, y las 10:00 son un
+  buen borde de abajo.
 - **Por foto** (respaldo): `app/convocatoria.js` lee la imagen del club con
   tesseract.js, descargado de jsDelivr solo al usar esa pantalla. La foto no se
   sube a ningún sitio ni se guarda: solo viaja la lista de identificadores, y solo
@@ -331,6 +334,17 @@ ejecución deshace ese fichero entero.
 
 ## Trampas conocidas (errores ya cometidos, no repetirlos)
 
+- **El club no presenta la convocatoria siempre con la misma frase.** En la
+  jornada 1 escribio «La lista completa la forman:» y en la 2 «La convocatoria al
+  completo la conforman:». El robot buscaba la primera al pie de la letra, asi que
+  encontro la noticia pero se volvio de vacio diciendo «no trae la frase con la
+  lista». Ahora se busca por el VERBO (`forman`, `conforman`, `componen`,
+  `integran`) y no por la frase entera. Se puede ser ancho a proposito: si se
+  pesca la frase equivocada, los nombres no casaran con la plantilla y `MINIMO`
+  impide que se guarde nada. **El titulo de la noticia tambien cambia**
+  (`convocatoria-sevilla-fc-rayo-vallecano-laliga-2026-2027` frente a
+  `convocatoria-athletic-club-sevilla-fc-jornada-2-2627`), pero eso ya lo
+  aguantaba `buscar_noticia`.
 - **`psql -c` no sustituye las variables de psql.** `psql -c "select f(:'x')"` se
   manda tal cual al servidor y revienta con `syntax error at or near ":"`. Por eso
   las órdenes del robot se arman en `robot/orden_sql.py`, ya escapadas, y se pasan
