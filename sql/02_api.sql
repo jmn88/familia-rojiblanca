@@ -98,6 +98,18 @@ set search_path = public, extensions, pg_temp as $$
                'publicada', once_oficial is not null)
              order by numero), '[]'::json)
       from jornadas),
+    -- Quien ha pedido entrar en la porra y sigue esperando. Solo lo ve el
+    -- administrador, que es quien aprueba; y nunca sale de aqui ni el PIN ni el
+    -- correo entero, igual que con los participantes.
+    'solicitudes', case when f_es_admin(p_token) then (
+      select coalesce(json_agg(json_build_object(
+               'id', id, 'nombre', nombre, 'email_pista', email_pista,
+               'avisos', avisos, 'creada_en', creada_en)
+             order by creada_en), '[]'::json)
+        from solicitudes where estado = 'pendiente') end,
+    -- a quien se le avisa por correo cuando entra una solicitud
+    'avisar_a', case when f_es_admin(p_token) then
+      (select nullif(btrim(valor), '')::int from config where clave = 'admin_participante') end,
     'sesion', (
       select json_build_object('participante_id', s.participante_id, 'es_admin', s.es_admin,
                                'nombre', p.nombre,

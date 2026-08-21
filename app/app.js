@@ -324,6 +324,8 @@ async function guardarAvisos(args, exito) {
 }
 
 function loginHTML() {
+  if (S.pidiendo) return solicitarHTML();
+
   const ps = S.estado?.participantes || [];
   return `<div class="tarjeta">
     <h2>Entra con tu nombre</h2>
@@ -335,9 +337,51 @@ function loginHTML() {
     </select>
     <label for="inp-pin">PIN de 4 dígitos</label>
     <input id="inp-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
-    <div id="mensaje-login"></div>
+    <div id="mensaje-login">${S.solicitado ? aviso(S.solicitado, "ok") : ""}</div>
     <p style="margin-top:14px"><button class="principal" id="btn-entrar" style="width:100%">Entrar</button></p>
+    <hr style="margin:18px 0;border:0;border-top:1px solid var(--borde)">
+    <p class="cuando" style="margin-bottom:8px">¿No estás en la lista y quieres jugar?</p>
+    <p style="margin:0"><button id="btn-pedir-entrar" style="width:100%">Pedir entrar en la porra</button></p>
   </div>`;
+}
+
+// Pedir entrar. No entra nadie por su cuenta: esto deja una solicitud y es el
+// administrador quien la aprueba, así que aquí no se abre ninguna sesión.
+function solicitarHTML() {
+  return `<div class="tarjeta">
+    <h2>Pedir entrar en la porra</h2>
+    <p>Rellena esto y le llegará un aviso a Jesús. Cuando lo apruebe, ya podrás entrar con tu nombre y el PIN que elijas ahora.</p>
+    <label for="sol-nombre">Tu nombre</label>
+    <input id="sol-nombre" maxlength="30" autocomplete="off" placeholder="Cómo quieres que te llamemos">
+    <label for="sol-pin">PIN de 4 dígitos</label>
+    <input id="sol-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
+    <p class="cuando" style="margin:6px 0 0">Es el que usarás para entrar. Apúntatelo: no se puede consultar, solo reiniciar.</p>
+    <label for="sol-email" style="margin-top:14px">Correo (si quieres avisos)</label>
+    <input id="sol-email" type="email" autocomplete="off" placeholder="nombre@correo.com">
+    <p class="cuando" style="margin:6px 0 0">Opcional. Sirve para avisarte cuando se sepa la convocatoria y cuando te falte la alineación. Se guarda cifrado y no lo ve nadie, ni el administrador. Sin correo, no se te avisa de nada.</p>
+    <div id="msg-solicitud"></div>
+    <p style="margin-top:14px"><button class="principal" id="btn-solicitar" style="width:100%">Enviar la solicitud</button></p>
+    <p style="margin-top:6px"><button id="btn-cancelar-solicitud" style="width:100%">Volver</button></p>
+  </div>`;
+}
+
+async function solicitar() {
+  const caja = $("#msg-solicitud");
+  const nombre = $("#sol-nombre").value.trim();
+  const pin = $("#sol-pin").value.trim();
+  const email = $("#sol-email").value.trim();
+
+  if (nombre.length < 2) { caja.innerHTML = aviso("Escribe tu nombre.", "error"); return; }
+  if (!/^\d{4}$/.test(pin)) { caja.innerHTML = aviso("El PIN son 4 dígitos.", "error"); return; }
+
+  const r = await API.rpc("api_solicitar",
+    { p_nombre: nombre, p_pin: pin, p_email: email || null });
+  if (!r.ok) { caja.innerHTML = aviso(r.error, "error"); return; }
+
+  S.pidiendo = false;
+  S.solicitado = `Solicitud enviada como «${r.nombre}». Jesús tiene que aprobarla; en cuanto lo haga, `
+    + `entra aquí eligiendo tu nombre y con el PIN que has puesto.`;
+  await pintarAlineacion();
 }
 
 async function entrar() {
@@ -556,6 +600,7 @@ async function pintarAdmin() {
 
   // El robot del calendario pone solo la hora oficial, pero nunca pisa una que
   // hayas confirmado tú: cuando el club dice otra cosa, la deja apuntada aquí.
+  const solicitudes = S.estadoAdm.solicitudes || [];
   const discrepancias = js.filter(j => j.horario_aviso);
   const repasado = js.map(j => j.horario_visto_en).filter(Boolean).sort().pop();
 
@@ -565,6 +610,8 @@ async function pintarAdmin() {
     <p>El cierre se calcula solo: una hora antes del inicio. La hora oficial la trae sola la web del club, los lunes y los jueves${repasado ? `; la última vez, el ${fechaLarga(repasado)} a las ${hora(repasado)}` : ""}.</p>
     ${discrepancias.map(j => aviso(`Jornada ${j.numero}, contra ${j.rival}: ${j.horario_aviso} `
       + `Como esa hora la pusiste tú, no se ha tocado nada. Míralo y pulsa Editar en esa fila: al guardar, el aviso se quita.`, "error")).join("")}
+    ${solicitudes.length ? aviso(`Hay ${solicitudes.length === 1 ? "una solicitud" : solicitudes.length + " solicitudes"} para entrar en la porra esperando. `
+      + `Las tienes más abajo, en «Solicitudes para entrar».`) : ""}
     ${enApuros ? aviso(`El once de la jornada ${enApuros.numero} sigue sin aparecer y el partido empieza a las ${hora(enApuros.kickoff)}. `
       + `El robot lo busca cada cinco minutos en la web del club, pero ve marcándolo tú abajo en cuanto lo sepas: hasta que no haya once oficial no se reparten puntos.`, "error") : ""}
     ${prox && sinHora(prox) ? aviso(`El próximo partido es la jornada ${prox.numero} y su hora todavía es orientativa. El robot la trae sola en cuanto el club la publique; si tiene prisa y ya la sabes, pulsa Editar en esa fila, corrige el día y la hora y marca «hora oficial»: el cierre se recalcula solo.`) : ""}
@@ -656,6 +703,35 @@ async function pintarAdmin() {
     <div id="msg-once"></div>
     <p><button class="principal" id="btn-once" ${S.adminOnce.length === 11 ? "" : "disabled"}>Guardar once oficial</button>
        <button id="btn-despublicar">Quitar</button></p>
+  </div>
+
+  <div class="tarjeta">
+    <h2>Solicitudes para entrar</h2>
+    <p>Quien no está en la lista puede pedir entrar desde la pantalla de «Mi alineación». Hasta que lo apruebes aquí no aparece en ningún sitio ni recibe nada.</p>
+    ${solicitudes.length ? `<div class="tabla-scroll"><table>
+      <thead><tr><th>Nombre</th><th>Lo pidió</th><th>Avisos</th><th></th></tr></thead>
+      <tbody>${solicitudes.map(so => `<tr>
+        <td>${esc(so.nombre)}</td>
+        <td><span class="cuando">${fechaLarga(so.creada_en)} a las ${hora(so.creada_en)}</span></td>
+        <td>${so.avisos && so.email_pista ? esc(so.email_pista) : "<span class='no-participo'>no</span>"}</td>
+        <td>
+          <button class="menor" data-solicitud="${so.id}" data-aprobar="1" data-nombre="${esc(so.nombre)}">Aprobar</button>
+          <button class="menor" data-solicitud="${so.id}" data-aprobar="0" data-nombre="${esc(so.nombre)}">Rechazar</button>
+        </td></tr>`).join("")}</tbody>
+    </table></div>
+    <p class="cuando">Al aprobar entra con el nombre y el PIN que eligió él; tú no llegas a verlo. Al rechazar se le borran el PIN y el correo, y puede volver a pedirlo.</p>`
+      : `<p class="cuando">No hay ninguna solicitud esperando.</p>`}
+    <div class="fila" style="margin-top:12px">
+      <div style="flex:2 1 220px"><label for="sel-avisar-a">¿A quién aviso por correo cuando llegue una?</label>
+        <select id="sel-avisar-a">
+          <option value="">— a nadie —</option>
+          ${(S.estadoAdm.participantes || []).map(p =>
+            `<option value="${p.id}" ${p.id === S.estadoAdm.avisar_a ? "selected" : ""}>${esc(p.nombre)}${p.avisos && p.email_pista ? ` · ${esc(p.email_pista)}` : " · sin correo"}</option>`).join("")}
+        </select></div>
+      <div style="flex:0;align-self:end"><button id="btn-avisar-a">Guardar</button></div>
+    </div>
+    <p class="cuando">Se usa el correo que esa persona tenga puesto en sus avisos. Si no tiene, el aviso no sale y queda dicho en el registro del proceso.</p>
+    <div id="msg-solicitudes"></div>
   </div>
 
   <div class="tarjeta">
@@ -839,6 +915,17 @@ document.addEventListener("click", async ev => {
     if (t.id === "btn-entrar")  { await entrar(); return; }
     if (t.id === "btn-guardar") { await guardarAlineacion(); return; }
 
+    // --- pedir entrar en la porra ---
+    if (t.id === "btn-pedir-entrar") {
+      S.pidiendo = true; S.solicitado = null;
+      await pintarAlineacion(); return;
+    }
+    if (t.id === "btn-cancelar-solicitud") {
+      S.pidiendo = false;
+      await pintarAlineacion(); return;
+    }
+    if (t.id === "btn-solicitar") { await solicitar(); return; }
+
     // --- avisos por correo ---
     if (t.id === "btn-avisos") {
       const email = $("#inp-email").value.trim();
@@ -1015,6 +1102,38 @@ document.addEventListener("click", async ev => {
       if (r) { S.adminOnce = []; await cargarEstado(); await pintarAdmin(); }
       return;
     }
+    // --- solicitudes para entrar ---
+    if (t.dataset.solicitud) {
+      const aprobar = t.dataset.aprobar === "1";
+      const nombre = t.dataset.nombre;
+      if (!confirm(aprobar
+        ? `¿Aprobar a ${nombre}? Podrá entrar con el PIN que eligió y jugará desde la próxima jornada.`
+        : `¿Rechazar la solicitud de ${nombre}? Se le borran el PIN y el correo que puso.`)) return;
+
+      const r = await accionAdmin("api_admin_solicitud",
+        { p_id: Number(t.dataset.solicitud), p_aprobar: aprobar }, "#msg-solicitudes");
+      if (r) {
+        await cargarEstado();
+        await pintarAdmin();
+        $("#msg-solicitudes").innerHTML = aviso(aprobar
+          ? `${nombre} ya es participante. Avísale de que puede entrar con su nombre y su PIN.`
+          : `Solicitud de ${nombre} rechazada.`, aprobar ? "ok" : "");
+      }
+      return;
+    }
+    if (t.id === "btn-avisar-a") {
+      const id = $("#sel-avisar-a").value;
+      const r = await accionAdmin("api_admin_avisar_a",
+        { p_participante: id ? Number(id) : null }, "#msg-solicitudes");
+      if (r) {
+        await pintarAdmin();
+        $("#msg-solicitudes").innerHTML = aviso(id
+          ? "Guardado. Ahí llegarán los avisos de las solicitudes nuevas."
+          : "Guardado: no se avisa a nadie por correo de las solicitudes nuevas.", "ok");
+      }
+      return;
+    }
+
     if (t.dataset.resetPin) {
       if (!confirm(`¿Reiniciar el PIN de ${t.dataset.nombre}? La próxima vez que entre elegirá uno nuevo.`)) return;
       const r = await accionAdmin("api_admin_reset_pin", { p_participante: Number(t.dataset.resetPin) }, "#msg-part", "PIN reiniciado.");

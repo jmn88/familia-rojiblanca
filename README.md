@@ -156,6 +156,8 @@ base de datos y nunca salen de ella.
 - **Avisos por correo** (opcionales, los activa cada uno): uno en cuanto se
   conoce la convocatoria, con la lista de convocados, y otro tres horas antes
   del partido si sigues sin enviar tu once. Ver más abajo.
+- **Quién juega**: los participantes de siempre y quien pida entrar desde la
+  propia web, siempre que el administrador lo apruebe. Ver más abajo.
 
 ## El horario oficial se pone solo
 
@@ -254,6 +256,39 @@ arrastra a la otra si falla.
 > ¿Y por qué no se leen los tuits de @SevillaFC? Porque desde febrero de 2026 X
 > cobra por leer publicaciones y habría que darle una tarjeta. La web del club da
 > lo mismo, gratis y en texto limpio.
+
+## Alguien quiere entrar en la porra
+
+En la pantalla de **Mi alineación**, debajo del botón de entrar, hay un
+**«Pedir entrar en la porra»**. Quien no esté en la lista rellena su nombre, el
+PIN que quiera usar y, si le apetece que le avisemos, su correo. Y ya está: a ti
+te llega un correo y lo apruebas cuando puedas.
+
+Hasta que tú lo apruebes, esa persona **no existe** para la web: no sale en el
+desplegable de entrar, ni en la clasificación, ni recibe ningún aviso, ni cuenta
+como que «no participó» en ninguna jornada.
+
+Para resolverlo: **Admin → Solicitudes para entrar**. Salen el nombre, cuándo lo
+pidió y si quiere avisos, con dos botones:
+
+- **Aprobar**: pasa a ser participante y entra con el nombre y el PIN que eligió
+  él. Tú no llegas a ver ese PIN en ningún momento: viaja cifrado de la solicitud
+  a la ficha, igual que el correo. Avísale de que ya puede entrar.
+- **Rechazar**: se le borran el PIN y el correo que puso. Se queda apuntado el
+  nombre y la fecha, y esa persona puede volver a pedirlo si quiere.
+
+En esa misma tarjeta eliges **a quién se le avisa por correo** cuando llegue una
+solicitud. Viene puesto Jesús, y se usa el correo que esa persona tenga en sus
+avisos, así que no hay que escribirlo otra vez. Si esa persona no tiene correo
+puesto, el aviso no sale y queda dicho en el registro del proceso.
+
+El correo lo manda el mismo proceso que los demás avisos, así que llega **como
+mucho un cuarto de hora después**. Si entran varias solicitudes seguidas, va una
+sola carta con todas.
+
+> La puerta está abierta a cualquiera que entre en la web, así que tiene freno:
+> como mucho 5 solicitudes por hora y 20 esperando. Si alguien se pone pesado, no
+> puede llenarte el panel.
 
 ## Los avisos por correo
 
@@ -374,6 +409,7 @@ robot/convocatoria.py busca la convocatoria en la web del club (lo usa GitHub)
 robot/once.py         busca el once inicial y lo deja propuesto
 robot/horario.py      lee el calendario del club y trae la hora oficial
 robot/avisos.py       manda los recordatorios de alineación por correo
+robot/solicitudes.py  avisa al administrador de quien ha pedido entrar
 robot/orden_sql.py    arma la orden de SQL que guarda lo que han encontrado
 robot/resumen_horario.py  el resumen del calendario que sale en Actions
 css/estilos.css
@@ -384,6 +420,7 @@ sql/04_calendario.sql las 37 jornadas restantes, con la hora aún sin confirmar
 sql/05_robot.sql      lo que usa el robot de la convocatoria
 sql/06_avisos.sql     los avisos por correo (el correo, cifrado)
 sql/07_horario.sql    el robot que trae el horario oficial de los partidos
+sql/08_solicitudes.sql  pedir entrar en la porra, y aprobarlo o rechazarlo
 sql/99_autoprueba.sql prueba de que todo funciona; no deja rastro
 data/seed.json        los mismos datos en JSON, para referencia
 ```
@@ -416,6 +453,11 @@ data/seed.json        los mismos datos en JSON, para referencia
   no vale con cambiar la hora del móvil ni trastear la página. Lo mismo con la
   convocatoria: la lista de convocados se valida en el servidor.
 - Las alineaciones ajenas **no salen** de la base de datos hasta el cierre.
+- Pedir entrar es lo único que se puede hacer sin haber iniciado sesión, así que
+  lleva freno: 5 solicitudes por hora y 20 esperando como mucho. Y una solicitud
+  no es un participante: hasta que la apruebas no existe para nada. El PIN que
+  eligió va con el mismo *hash* que los demás desde el primer momento, así que
+  nadie —tú tampoco— llega a verlo.
 - El correo de cada uno se guarda **cifrado** y ninguna función de la web lo
   devuelve: ni al interesado, ni al administrador, que solo ve `j***@gmail.com`.
   Solo lo descifra el proceso que manda el aviso, con la cadena de conexión

@@ -69,6 +69,17 @@ def horario(datos):
                                                     texto(datos.get("fuente") or ""))
 
 
+def solicitudes(datos):
+    """Las ordenes que apuntan las solicitudes ya avisadas al administrador.
+
+    Igual que con los recordatorios, solo se apuntan si el correo ha salido: si
+    falla, se reintenta en el siguiente pase."""
+    ids = datos.get("avisadas") or []
+    if not datos.get("ok") or not ids:
+        raise SystemExit("no se ha avisado de ninguna solicitud")
+    return "\n".join("select robot_solicitud_avisada(%d);" % int(i) for i in ids)
+
+
 def nota(pendiente, motivo):
     """La orden que apunta un intento fallido del robot del once.
 
@@ -90,6 +101,8 @@ def main():
         print(nota(json.load(sys.stdin), sys.argv[2] if len(sys.argv) > 2 else ""))
     elif cual == "horario":
         print(horario(json.load(sys.stdin)))
+    elif cual == "solicitudes":
+        print(solicitudes(json.load(sys.stdin)))
     elif cual == "avisos":
         print(avisos(json.load(sys.stdin)))
     else:

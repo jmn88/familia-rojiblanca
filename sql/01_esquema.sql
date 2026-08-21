@@ -138,6 +138,31 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
+-- Quien pide entrar en la porra desde la propia web. NO es un participante: lo
+-- sera cuando el administrador apruebe la solicitud, y solo entonces. Es a
+-- proposito, para que quien no esta aprobado no pueda aparecer en la
+-- clasificacion, ni en la lista de la pantalla de entrar, ni recibir avisos, ni
+-- contar como «no participo». Las funciones estan en sql/08_solicitudes.sql.
+--
+-- El PIN va con el mismo hash que el de los participantes y el correo con el
+-- mismo cifrado que el de los avisos, asi que al aprobar solo hay que mudar las
+-- columnas de sitio.
+create table if not exists solicitudes (
+  id            serial primary key,
+  nombre        text not null,
+  pin_hash      text not null,
+  email_cifrado bytea,
+  email_pista   text,
+  avisos        boolean not null default false,
+  estado        text not null default 'pendiente'
+                check (estado in ('pendiente', 'aprobada', 'rechazada')),
+  creada_en     timestamptz not null default now(),
+  resuelta_en   timestamptz,
+  -- cuando se le mando el correo al administrador; null = aun sin avisar
+  avisado_en    timestamptz
+);
+create index if not exists ix_solicitudes_estado on solicitudes (estado, creada_en);
+
 create table if not exists sesiones (
   token           uuid primary key default gen_random_uuid(),
   participante_id int references participantes(id) on delete cascade,
@@ -169,6 +194,7 @@ alter table jugadores      enable row level security;
 alter table jornadas       enable row level security;
 alter table alineaciones   enable row level security;
 alter table recordatorios  enable row level security;
+alter table solicitudes    enable row level security;
 alter table sesiones       enable row level security;
 alter table intentos_login enable row level security;
 alter table config         enable row level security;
