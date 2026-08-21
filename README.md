@@ -160,10 +160,14 @@ base de datos y nunca salen de ella.
 
 El Sevilla FC publica la convocatoria en su propia web, y dentro va **en texto**:
 «La lista completa la forman: Odysseas, Fran González…». Un proceso de GitHub
-(`.github/workflows/convocatoria.yml`) mira **cada media hora, desde el día antes
-del partido**, si sigue sin convocatoria y con el plazo abierto; cuando el club la
-publica, la encuentra, cruza los nombres con la plantilla y la carga. No tienes
-que hacer nada.
+(`.github/workflows/convocatoria.yml`) mira **cada media hora, desde las 10:00 de
+la víspera del partido**, si sigue sin convocatoria y con el plazo abierto; cuando
+el club la publica, la encuentra, cruza los nombres con la plantilla y la carga.
+No tienes que hacer nada.
+
+Esa hora no es casual: el club la publica **tras la rueda de prensa del
+entrenador**, que es la mañana anterior al partido. Antes de eso no hay nada que
+buscar.
 
 Un par de reglas para que no te sorprenda:
 

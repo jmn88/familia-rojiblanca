@@ -142,6 +142,12 @@ navegador.
   puede acertar, porque no saldrá en el once oficial. Ni se borra, ni cuenta como
   «no participó». Lo que sí se impide es guardar cambios nuevos con alguien de
   fuera. Está cubierto por la autoprueba: **no lo conviertas en un descarte**.
+- **Se busca desde las 10:00 (hora de Madrid) de la víspera**, no «24 horas
+  antes» como estuvo al principio. Motivo del usuario (agosto de 2026): el club la
+  publica tras la rueda de prensa del entrenador, que es la mañana anterior al
+  partido, así que con la regla vieja se empezaba a mirar tarde en los partidos de
+  tarde-noche. La hora se calcula en SQL sobre `kickoff`, con su huso, así que el
+  cambio de hora no la mueve.
 - **Por foto** (respaldo): `app/convocatoria.js` lee la imagen del club con
   tesseract.js, descargado de jsDelivr solo al usar esa pantalla. La foto no se
   sube a ningún sitio ni se guarda: solo viaja la lista de identificadores, y solo
@@ -198,7 +204,7 @@ en segundos.
 
 | Proceso | Cada | Ventana (la marca SQL) | Qué hace |
 |---|---|---|---|
-| `convocatoria.yml` | 30 min | desde 1 día antes, con el plazo abierto | Carga la convocatoria |
+| `convocatoria.yml` | 30 min | desde las 10:00 de la víspera, con el plazo abierto | Carga la convocatoria |
 | `once.yml` | 5 min | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
 | `avisos.yml` | 15 min | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
 

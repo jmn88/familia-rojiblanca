@@ -1,8 +1,9 @@
 # Carga sola la convocatoria del proximo partido.
 #
-# Cada media hora mira si hay una jornada esperando convocatoria (partido dentro
-# de tres dias y plazo aun abierto). Si la hay, busca la noticia en la web del
-# Sevilla FC, saca de ella la lista de convocados y la guarda.
+# Cada media hora mira si hay una jornada esperando convocatoria (desde las 10:00
+# de la vispera del partido, que es cuando el club la publica tras la rueda de
+# prensa del entrenador, y con el plazo aun abierto). Si la hay, busca la noticia
+# en la web del Sevilla FC, saca de ella la lista de convocados y la guarda.
 #
 # Si el club todavia no la ha publicado, no hace nada y se vuelve a mirar en
 # media hora. Si el administrador ya la habia cargado a mano, tampoco la toca:

@@ -189,6 +189,15 @@ begin
   -- jugador v_picks[11] queda expresamente SIN convocar, que es lo que se prueba.
   v_conv := v_picks[1:10] || v_otros[1:1];
 
+  -- El robot mira desde las 10:00 del dia ANTERIOR al partido, que es cuando el
+  -- club la publica (rueda de prensa del entrenador la vispera). Aqui el partido
+  -- es dentro de dos horas, asi que esa hora ya paso y le toca a la jornada 1; la
+  -- 2, que es dentro de nueve dias, no puede salir todavia.
+  if robot_pendiente()->'jornada'->>'numero' is distinct from '1' then
+    fallos := fallos || E'
+- el robot de la convocatoria no coge el partido que toca';
+  end if;
+
   r := api_admin_convocatoria(gen_random_uuid(), v_jor, v_conv);
   if (r->>'ok')::boolean then fallos := fallos || E'\n- cualquiera puede cargar la convocatoria'; end if;
 
@@ -204,6 +213,14 @@ begin
   end if;
   if (r->>'afectadas')::int is distinct from 1 then
     fallos := fallos || E'\n- no avisa de la alineacion que se queda fuera de la convocatoria';
+  end if;
+
+  -- Con la convocatoria ya puesta el robot se calla, y la jornada 2 sigue sin
+  -- entrarle porque su vispera esta a ocho dias: no queda nada pendiente.
+  if robot_pendiente()->'jornada'->>'numero' is not null then
+    fallos := fallos || E'
+- el robot volveria a cargar una convocatoria ya puesta, '
+                     || 'o coge un partido cuya vispera no ha llegado';
   end if;
 
   -- ------------------------------------- el aviso de «ya hay convocatoria»

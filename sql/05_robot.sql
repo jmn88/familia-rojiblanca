@@ -1,8 +1,8 @@
 -- Familia Rojiblanca 26/27 — el robot de la convocatoria
 --
 -- El Sevilla FC publica la convocatoria de cada partido en su propia web, y en
--- texto («La lista completa la forman: …»). Un proceso de GitHub la busca el dia
--- del partido y la carga aqui, para no tener que subir la foto a mano.
+-- texto («La lista completa la forman: …»). Un proceso de GitHub la busca desde
+-- la vispera y la carga aqui, para no tener que subir la foto a mano.
 --
 -- Estas funciones NO son para la web: se llaman desde ese proceso, que entra con
 -- la cadena de conexion del secret SUPABASE_DB_URL. Por eso al final se les
@@ -24,7 +24,11 @@ set search_path = public, extensions, pg_temp as $$
         from jornadas
        where convocatoria is null                                   -- aun sin cargar
          and now() < f_cierre_efectivo(cierre, prorroga_hasta)      -- y con el plazo abierto
-         and kickoff < now() + interval '1 day'                     -- desde el dia antes del partido
+         -- Desde las 10:00 (hora de Madrid) del dia ANTERIOR al partido: el club
+         -- la publica tras la rueda de prensa del entrenador, que es la vispera
+         -- por la manana. Antes de esa hora no hay nada que buscar.
+         and now() >= ((kickoff at time zone 'Europe/Madrid')::date - 1
+                       + time '10:00') at time zone 'Europe/Madrid'
        order by numero
        limit 1),
     'plantilla', (
