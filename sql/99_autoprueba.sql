@@ -24,6 +24,10 @@ declare
   v_pts    int;
   v_n      int;
   v_pk     text;
+  v_hora   timestamptz;
+  v_k      timestamptz;
+  v_c      timestamptz;
+  v_b      boolean;
   v_correo text := 'zz.prueba@ejemplo.com';
   fallos   text := '';
 begin
@@ -370,6 +374,99 @@ begin
    where (x->>'participante_id')::int = v_part;
   if v_pts is distinct from 25 then
     fallos := fallos || E'\n- la clasificacion general no suma bien (' || coalesce(v_pts::text, 'nulo') || ')';
+  end if;
+
+  -- ------------------------------------------------------ horario oficial
+  -- El robot del calendario pone solo la hora que publica el club. Lo que no
+  -- hace es tocar una jornada cerrada ni pisar una hora que puso una persona.
+
+  -- solo mira lo que sigue abierto: la jornada 1 esta cerrada y puntuada
+  select count(*) into v_n from json_array_elements(robot_pendiente_horario()->'jornadas') x;
+  if v_n <> 1 then
+    fallos := fallos || E'\n- el robot del horario no coge solo las jornadas abiertas (coge '
+                     || v_n || ')';
+  end if;
+
+  -- La jornada 2 tiene la hora orientativa y el cierre un dia antes. Le llega la
+  -- oficial: se mueve el partido y el cierre con el, conservando ese margen. En
+  -- el mismo lote va la jornada 1, cerrada y puntuada, con una hora disparatada:
+  -- esa no se puede tocar.
+  v_hora := date_trunc('minute', now()) + interval '9 days' + interval '5 hours';
+  select kickoff into v_c from jornadas where id = v_jor;
+
+  r := robot_horario(json_build_array(
+         json_build_object('jornada', 1, 'rival', 'ZZ Prueba', 'en_casa', true,
+                           'kickoff', to_char((v_c + interval '30 days') at time zone 'UTC',
+                                              'YYYY-MM-DD HH24:MI:SS"+00"'),
+                           'hora_conocida', true),
+         json_build_object('jornada', 2, 'rival', 'ZZ Prueba B', 'en_casa', false,
+                           'kickoff', to_char(v_hora at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS"+00"'),
+                           'hora_conocida', true)),
+       'https://ejemplo/calendario');
+
+  select kickoff into v_k from jornadas where id = v_jor;
+  if v_k is distinct from v_c then
+    fallos := fallos || E'\n- ¡el robot del horario mueve una jornada ya cerrada!';
+  end if;
+
+  select kickoff, cierre into v_k, v_c from jornadas where id = v_jor2;
+  if v_k is distinct from v_hora then
+    fallos := fallos || E'\n- el robot no pone la hora oficial que publica el club';
+  end if;
+  if v_c is distinct from v_hora - interval '1 day' then
+    fallos := fallos || E'\n- al mover la hora no arrastra el cierre con el mismo margen';
+  end if;
+
+  select hora_confirmada, horario_fuente into v_b, v_pk from jornadas where id = v_jor2;
+  if not v_b or v_pk is null then
+    fallos := fallos || E'\n- el robot no marca como oficial la hora que ha traido del club';
+  end if;
+  if json_array_length(r->'cambiadas') <> 1 then
+    fallos := fallos || E'\n- el robot no cuenta bien los horarios que ha cambiado';
+  end if;
+
+  -- Ahora la hora la confirma una persona desde Admin. A partir de ahi el robot
+  -- no la pisa: si el club dice otra cosa, la deja apuntada y avisa.
+  r := api_admin_jornada(v_adm, v_jor2, 2, 'ZZ Prueba B', false,
+                         v_hora + interval '1 hour', 60, true);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'\n- no deja confirmar la hora a mano: ' || (r->>'error');
+  end if;
+
+  r := robot_horario(json_build_array(json_build_object(
+         'jornada', 2, 'rival', 'ZZ Prueba B', 'en_casa', false,
+         'kickoff', to_char(v_hora at time zone 'UTC', 'YYYY-MM-DD HH24:MI:SS"+00"'),
+         'hora_conocida', true)), 'https://ejemplo/calendario');
+
+  select kickoff, horario_aviso into v_k, v_pk from jornadas where id = v_jor2;
+  if v_k is distinct from v_hora + interval '1 hour' then
+    fallos := fallos || E'\n- ¡el robot pisa una hora que habia confirmado una persona!';
+  end if;
+  if v_pk is null then
+    fallos := fallos || E'\n- no deja constancia de la discrepancia de horario';
+  end if;
+  if json_array_length(r->'avisos') <> 1 then
+    fallos := fallos || E'\n- el robot no cuenta la discrepancia que se ha encontrado';
+  end if;
+
+  -- el aviso es cosa del administrador: nadie mas lo ve
+  select x->>'horario_aviso' into v_pk from json_array_elements(api_estado(v_adm)->'jornadas') x
+   where (x->>'numero')::int = 2;
+  if v_pk is null then
+    fallos := fallos || E'\n- el administrador no ve la discrepancia de horario';
+  end if;
+  select x->>'horario_aviso' into v_pk from json_array_elements(api_estado(v_tok)->'jornadas') x
+   where (x->>'numero')::int = 2;
+  if v_pk is not null then
+    fallos := fallos || E'\n- la discrepancia de horario se ve sin ser administrador';
+  end if;
+
+  -- y en cuanto el administrador repasa la jornada y guarda, el aviso se va
+  r := api_admin_jornada(v_adm, v_jor2, 2, 'ZZ Prueba B', false,
+                         v_hora + interval '1 hour', 60, true);
+  select horario_aviso into v_pk from jornadas where id = v_jor2;
+  if v_pk is not null then
+    fallos := fallos || E'\n- el aviso del horario no se quita al guardar la jornada';
   end if;
 
   -- ----------------------------------------------------------- resultado

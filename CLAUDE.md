@@ -91,7 +91,9 @@ navegador.
 
 ### Admin (solo Jesús, con contraseña propia)
 - **Jornadas**: crear y editar, marcar la hora como oficial, prorrogar el cierre
-  (+10 / +30 min).
+  (+10 / +30 min). La hora la trae sola el robot del calendario (ver «Los
+  robots»); si la confirmaste tú y el club dice otra cosa, sale el aviso en rojo
+  y se quita al guardar esa jornada.
 - **Convocatoria**: se carga sola (ver «Los robots»), y si hace falta se sube la
   foto del club y se lee en el propio navegador. Se repasa y se guarda.
 - **Once inicial**: el robot lo deja propuesto y el administrador lo confirma con
@@ -139,7 +141,8 @@ navegador.
   a la jornada equivocada teniendo las 38 cargadas.
 - **Horas tentativas**: LaLiga fija el horario pocas semanas antes. Las jornadas
   llevan `hora_confirmada`; a `false`, la web enseña «hora sin confirmar» y lo
-  explica. El administrador la marca al corregir el horario.
+  explica. La marca el robot del calendario cuando trae la oficial (ver «El
+  horario oficial»), y también el administrador si la corrige a mano.
 
 ### La convocatoria
 - `jornadas.convocatoria` (`int[]`) es opcional. A `null` vale toda la plantilla;
@@ -159,6 +162,31 @@ navegador.
   tesseract.js, descargado de jsDelivr solo al usar esa pantalla. La foto no se
   sube a ningún sitio ni se guarda: solo viaja la lista de identificadores, y solo
   al pulsar Guardar. **La lectura siempre la confirma el administrador**.
+
+### El horario oficial (issue #7)
+- **Lo trae solo el robot del calendario**, de la web del club
+  (`/calendario/sevilla`), donde van las 38 jornadas con día y hora dentro del
+  JSON de la página. No hace falta la API de LaLiga ni un navegador.
+- **Dos veces por semana** (lunes y jueves). El usuario pidió «cada X días, por
+  ejemplo 5»; se dejó en lunes y jueves porque cron no sabe de «cada 5 días» y
+  LaLiga publica los horarios de golpe con semanas de antelación. Cambiarlo es
+  una línea del `cron`.
+- **Al mover la hora se mueve el cierre con ella**, conservando el margen que
+  hubiera (`kickoff - cierre`), no una hora fija: el administrador puede haber
+  puesto otro para esa jornada.
+- **No pisa una hora que haya confirmado una persona.** Quién la puso se sabe por
+  `horario_fuente`: null = una persona (`api_admin_jornada` lo pone a null al
+  guardar), con dirección = el robot, y esa sí la puede volver a mover. Cuando no
+  se atreve, deja la discrepancia en `horario_aviso` y sale en rojo en Admin.
+  Es la misma regla de siempre: manda lo que haya puesto una persona.
+- **Con el plazo cerrado no toca nada**: mover el kickoff movería el cierre de un
+  partido que ya se jugó.
+- **La hora sin fijar el club la publica como las 00:00**, no con la marca
+  `unknown_datetime` (que venía a `0` en las 37 jornadas, con hora y sin ella).
+  Entonces solo se mueve el día y se respeta la hora orientativa.
+- **Se casa por número de jornada**, y el rival y el campo solo sirven para
+  comprobar que la fila es la que parece («Deportivo Alavés» / «Alavés», con
+  `comun.nota`). Si no cuadran, esa jornada se deja en paz.
 
 ### El once inicial
 - **El robot lo PROPONE, no lo publica.** Se guarda en `once_propuesto` y el
@@ -205,20 +233,22 @@ navegador.
 
 ## Los robots
 
-Tres procesos de GitHub, cada uno en su fichero, que van solos. **Quién decide si
-toca actuar es SQL, no el cron**: fuera de su ventana, el proceso se va de vacío
-en segundos.
+Cuatro procesos de GitHub, cada uno en su fichero, que van solos. **Quién decide
+si toca actuar es SQL, no el cron**: fuera de su ventana, el proceso se va de
+vacío en segundos.
 
 | Proceso | Cada | Ventana (la marca SQL) | Qué hace |
 |---|---|---|---|
 | `convocatoria.yml` | 30 min | desde las 10:00 de la víspera, con el plazo abierto | Carga la convocatoria |
 | `once.yml` | 5 min | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
 | `avisos.yml` | 15 min | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
+| `horario.yml` | lunes y jueves | jornadas con el plazo abierto | Trae el horario oficial del calendario del club |
 
-- Los datos salen de **la web del club**, que publica ambas cosas en texto dentro
-  del HTML servido: la convocatoria en «La lista completa la forman: …» y el once
-  en la noticia «en directo» («¡CONFIRMADO EL ONCE DEL SEVILLA FC! … sale con
-  Odysseas; Iglesias, …»). No hace falta navegador ni OCR.
+- Los datos salen de **la web del club**, que publica todo en texto dentro del
+  HTML servido: la convocatoria en «La lista completa la forman: …», el once en
+  la noticia «en directo» («¡CONFIRMADO EL ONCE DEL SEVILLA FC! … sale con
+  Odysseas; Iglesias, …») y el calendario entero en `/calendario/sevilla`, como
+  JSON dentro de un `<script>`. No hace falta navegador ni OCR.
 - **Leer los tuits de @SevillaFC se descartó**: desde febrero de 2026 X cobra por
   publicación leída. No lo replantees sin que el usuario lo pida.
 - Reglas: nunca pisan lo que haya puesto una persona; no cargan con el plazo
@@ -261,8 +291,10 @@ app/app.js            toda la lógica de la interfaz
 robot/comun.py        pedir páginas del club y casar nombres con la plantilla
 robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
 robot/once.py         busca el once inicial y lo deja PROPUESTO, sin publicar
+robot/horario.py      lee el calendario del club y saca el horario oficial
 robot/avisos.py       manda por Brevo los recordatorios que decide SQL
 robot/orden_sql.py    arma la orden de SQL, ya escapada, que guarda el resultado
+robot/resumen_horario.py  el resumen del calendario que sale en Actions
 css/estilos.css
 sql/01_esquema.sql    tablas y cierre de permisos
 sql/02_api.sql        funciones (PIN, cierre, puntuación, admin)
@@ -270,6 +302,7 @@ sql/03_datos.sql      participantes, plantilla y jornada 1
 sql/04_calendario.sql jornadas 2 a 38 del sorteo oficial, con hora tentativa
 sql/05_robot.sql      funciones del robot; cerradas al rol anónimo a propósito
 sql/06_avisos.sql     avisos por correo: correo cifrado y a quién toca avisar
+sql/07_horario.sql    el robot del horario oficial; cerrado al rol anónimo
 sql/99_autoprueba.sql prueba de extremo a extremo; no deja rastro
 data/seed.json        los mismos datos de partida en JSON, como referencia
 ```
@@ -317,6 +350,16 @@ ejecución deshace ese fichero entero.
   palabras (`fichasDe`) y el dorsal es solo un apoyo: manda el apellido.
   **No lo devuelvas a analizar `data.text`.** Para probarlo sin foto está
   `CONVOCATORIA.analizarLectura(data, ancho, plantilla)`.
+- **La marca `unknown_datetime` del calendario del club NO dice si la hora está
+  fijada**: venía a `0` en las 37 jornadas, tuvieran hora o no. Lo que sí lo dice
+  es que el partido esté publicado a las **00:00**, que es como el club deja los
+  que LaLiga aún no ha puesto en horario. Si algún día cambia, se nota en que el
+  robot marcaría como oficiales horas de madrugada.
+- **En Windows, la entrada de los robots se lee con la página de códigos de la
+  consola** y «Alavés» llega destrozado, así que el rival no cuadra y el robot se
+  calla sin motivo aparente. En GitHub (Linux, UTF-8) no pasa. `horario.py` y
+  `orden_sql.py` hacen `sys.stdin.reconfigure(encoding="utf-8")`; los otros dos
+  robots todavía no, y por ahí les pasaría lo mismo al probarlos aquí.
 - **Al casar nombres, cuidado con los apellidos compartidos**: «Rafa Romero»
   (canterano) no puede hacerse pasar por «Isaac Romero». El listón está alto a
   propósito, tanto en JS como en Python.
@@ -383,14 +426,27 @@ clase**, que saldrá solo con la primera convocatoria que se cargue.
 La ventana de la convocatoria (10:00 de la víspera, PR #8) también está
 aplicada y con la autoprueba pasada.
 
+**El horario automático (issue #7) está escrito pero aún NO aplicado.** Lo
+comprobado hasta ahora: `robot/horario.py` contra el calendario real del club
+(las 37 jornadas que quedaban, ninguna dudosa, con las tres que ya tenían hora
+oficial bien detectadas); el aviso en rojo de Admin y que se quite al guardar la
+jornada, en el navegador contra la demo; y que el workflow es YAML válido. Lo que
+falta, porque aquí no hay PostgreSQL: **pasar `sql/99_autoprueba.sql`** en el SQL
+Editor de Supabase (lleva trece comprobaciones nuevas del robot del horario) y
+ver el primer pase de verdad.
+
 ## Pendiente
 
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
    siempre en rojo** — lanza una excepción para revertir lo que crea; lo que vale
    es el mensaje (`AUTOPRUEBA: TODO CORRECTO`).
-2. **Las horas de cada jornada** hay que confirmarlas semana a semana desde Admin,
-   según las publique LaLiga.
+2. **El robot del horario no se ha estrenado en un pase de verdad.** Se probó
+   contra el calendario real del club (37 jornadas leídas, ninguna dudosa), pero
+   aún no ha escrito en la base de datos él solo. Conviene mirar el primer lunes
+   o jueves que le toque, en Actions → «Cargar el horario oficial»: el resumen
+   dice qué ha cambiado y qué ha dejado sin tocar. Corregir una hora a mano desde
+   Admin sigue funcionando igual, y a partir de ahí esa jornada es tuya.
 3. **La plantilla** está pendiente del cierre del mercado de septiembre de 2026.
    Se ajusta desde Admin.
 4. **El robot del once no se ha estrenado en un partido de verdad**: se probó con

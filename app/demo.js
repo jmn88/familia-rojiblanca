@@ -4,7 +4,7 @@
    La web de verdad (index.html) usa app/api.js y la base de datos real. */
 
 const API = (function () {
-  const CLAVE = "fr_demo_v6";   // al cambiar los datos de ejemplo se sube el número
+  const CLAVE = "fr_demo_v7";   // al cambiar los datos de ejemplo se sube el número
   const dia = 864e5;
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
@@ -60,12 +60,17 @@ const API = (function () {
           once_oficial: once, hora_confirmada: true, convocatoria: null },
         { id: 2, numero: 2, rival: "Rayo Vallecano", en_casa: true, kickoff: kick2.toISOString(),
           cierre: new Date(kick2.getTime() - 36e5).toISOString(), prorroga_hasta: null,
-          once_oficial: null, hora_confirmada: true, convocatoria: convocados },
+          once_oficial: null, hora_confirmada: true, convocatoria: convocados,
+          // hora puesta a mano y el club diciendo otra cosa: así se ve en Admin
+          // el aviso que deja el robot del calendario cuando no se atreve a pisarla
+          horario_aviso: "El club dice ahora 21:00, y aquí está puesto el mediodía como hora oficial.",
+          horario_visto_en: new Date(Date.now() - 2 * 36e5).toISOString() },
         // futura y con hora todavía sin fijar: no se puede alinear a ella, y en la
         // pestaña Jornada ni siquiera aparece. Solo se ve desde Admin.
         { id: 3, numero: 3, rival: "Athletic", en_casa: false, kickoff: kick3.toISOString(),
           cierre: new Date(kick3.getTime() - 36e5).toISOString(), prorroga_hasta: null,
-          once_oficial: null, hora_confirmada: false, convocatoria: null }
+          once_oficial: null, hora_confirmada: false, convocatoria: null,
+          horario_visto_en: new Date(Date.now() - 2 * 36e5).toISOString() }
       ]
     };
   }
@@ -119,6 +124,9 @@ const API = (function () {
           cerrada: cerrada(j), es_proxima: j.id === proxima()?.id,
           convocatoria: j.convocatoria || null,
           tiene_propuesta: Boolean(j.once_propuesto),
+          horario_aviso: s?.es_admin ? (j.horario_aviso || null) : null,
+          horario_del_club: s?.es_admin ? Boolean(j.horario_fuente) : null,
+          horario_visto_en: s?.es_admin ? (j.horario_visto_en || null) : null,
           publicada: Boolean(j.once_oficial)
         })),
         sesion: s ? (() => {
@@ -248,8 +256,11 @@ const API = (function () {
       const cierre = new Date(+new Date(p_kickoff) - (p_minutos_antes || 60) * 6e4).toISOString();
       let j = p_id ? db.jornadas.find(x => x.id === p_id) : db.jornadas.find(x => x.numero === p_numero);
       if (!j) { j = { id: Math.max(0, ...db.jornadas.map(x => x.id)) + 1, once_oficial: null, prorroga_hasta: null }; db.jornadas.push(j); }
+      // igual que en SQL: al guardarla desde aquí la hora pasa a ser tuya, así
+      // que el robot del calendario deja de pisarla y el aviso se da por visto
       Object.assign(j, { numero: p_numero, rival: p_rival.trim(), en_casa: p_en_casa, kickoff: p_kickoff, cierre,
-                         hora_confirmada: Boolean(p_hora_confirmada) });
+                         hora_confirmada: Boolean(p_hora_confirmada),
+                         horario_fuente: null, horario_aviso: null });
       db.jornadas.sort((a, b) => a.numero - b.numero);
       salvar();
       return ok({ id: j.id, cierre });

@@ -32,10 +32,11 @@ la ha fijado LaLiga (la publica unas semanas antes), así que va una tentativa d
 las 21:00 y la jornada queda marcada como *hora sin confirmar*: la web lo avisa
 con un distintivo amarillo y una nota, tanto a los participantes como a ti.
 
-Cuando se sepa la hora de verdad: **Admin → Editar** en esa jornada → corriges
-día y hora y marcas **«hora oficial»**. El cierre se recalcula solo. Mientras la
-jornada que toca siga sin hora confirmada, el panel de Admin te lo recuerda
-arriba del todo.
+**La hora la trae sola un robot** (ver «El horario oficial se pone solo»), así
+que normalmente no tienes que hacer nada. Si tienes prisa y ya la sabes:
+**Admin → Editar** en esa jornada → corriges día y hora y marcas **«hora
+oficial»**. El cierre se recalcula solo. Mientras la jornada que toca siga sin
+hora confirmada, el panel de Admin te lo recuerda arriba del todo.
 
 > La clave `anon` es pública por diseño: va dentro de la web. La seguridad no
 > depende de ella — todas las tablas están bloqueadas y solo se puede operar a
@@ -155,6 +156,40 @@ base de datos y nunca salen de ella.
 - **Avisos por correo** (opcionales, los activa cada uno): uno en cuanto se
   conoce la convocatoria, con la lista de convocados, y otro tres horas antes
   del partido si sigues sin enviar tu once. Ver más abajo.
+
+## El horario oficial se pone solo
+
+LaLiga fija el día y la hora exactos de cada partido pocas semanas antes, y
+además los mueve: un partido de sábado puede acabar jugándose el domingo. Eso se
+corregía a mano, jornada a jornada.
+
+El club publica su calendario entero en
+<https://www.sevillafc.es/calendario/sevilla>, así que un proceso de GitHub
+(`.github/workflows/horario.yml`) lo repasa **los lunes y los jueves** y trae lo
+que falte: pone la hora oficial de las jornadas que aún la tenían orientativa y
+corrige las que hayan cambiado de día o de hora. El cierre se mueve con el
+partido, conservando el margen que tuviera (una hora, salvo que tú lo cambiaras).
+
+Dos veces por semana basta y sobra: los horarios se publican de golpe, con
+semanas de antelación. Si algún día quieres que mire más a menudo, es cambiar el
+`cron` de ese fichero.
+
+Las reglas son las de siempre:
+
+- **No toca una hora que hayas confirmado tú.** Si el club dice otra cosa, la
+  deja apuntada y te sale **en rojo en Admin**, con lo que dice cada uno. La
+  miras, pulsas **Editar** en esa fila y guardas: el aviso se quita solo.
+  (En cuanto guardas una jornada desde Admin, esa hora pasa a ser tuya y el robot
+  ya no la mueve.)
+- **No toca nada con el plazo cerrado**, que ahí mover la hora movería el cierre
+  de algo que ya pasó.
+- **Si el rival o el campo no cuadran con lo que hay aquí, esa jornada se deja en
+  paz** y se anota en el registro del proceso.
+- Si LaLiga aún no ha dicho la hora, el club publica solo el día. Entonces se
+  mueve el día si hace falta y la hora sigue marcada como orientativa.
+
+En la tabla de Admin, debajo de cada partido, pone «la trajo el club» cuando la
+hora la ha puesto él, y arriba se ve cuándo fue la última vez que miró.
 
 ## La convocatoria se carga sola
 
@@ -334,11 +369,13 @@ app/api.js            llamadas a la base de datos
 app/demo.js           base de datos de mentira, solo para demo.html
 app/convocatoria.js   lee la foto de la convocatoria y la cruza con la plantilla
 app/app.js            lógica de la interfaz
-robot/comun.py        lo que comparten los dos robots (pedir páginas, casar nombres)
+robot/comun.py        lo que comparten los robots (pedir páginas, casar nombres)
 robot/convocatoria.py busca la convocatoria en la web del club (lo usa GitHub)
 robot/once.py         busca el once inicial y lo deja propuesto
+robot/horario.py      lee el calendario del club y trae la hora oficial
 robot/avisos.py       manda los recordatorios de alineación por correo
 robot/orden_sql.py    arma la orden de SQL que guarda lo que han encontrado
+robot/resumen_horario.py  el resumen del calendario que sale en Actions
 css/estilos.css
 sql/01_esquema.sql    tablas
 sql/02_api.sql        funciones (seguridad, cierre, puntuación)
@@ -346,6 +383,7 @@ sql/03_datos.sql      participantes, plantilla y jornada 1
 sql/04_calendario.sql las 37 jornadas restantes, con la hora aún sin confirmar
 sql/05_robot.sql      lo que usa el robot de la convocatoria
 sql/06_avisos.sql     los avisos por correo (el correo, cifrado)
+sql/07_horario.sql    el robot que trae el horario oficial de los partidos
 sql/99_autoprueba.sql prueba de que todo funciona; no deja rastro
 data/seed.json        los mismos datos en JSON, para referencia
 ```
