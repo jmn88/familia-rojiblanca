@@ -90,6 +90,11 @@ set search_path = public, extensions, pg_temp as $$
                'es_proxima', id is not distinct from f_jornada_proxima(),
                'convocatoria', convocatoria,
                'tiene_propuesta', once_propuesto is not null,
+               -- el horario que ha visto el robot del calendario: solo le
+               -- interesa a quien puede corregirlo
+               'horario_aviso',    case when f_es_admin(p_token) then horario_aviso end,
+               'horario_del_club', case when f_es_admin(p_token) then horario_fuente is not null end,
+               'horario_visto_en', case when f_es_admin(p_token) then horario_visto_en end,
                'publicada', once_oficial is not null)
              order by numero), '[]'::json)
       from jornadas),
@@ -392,18 +397,24 @@ begin
 
   v_cierre := p_kickoff - make_interval(mins => coalesce(p_minutos_antes, 60));
 
+  -- Al guardar desde aqui la hora pasa a ser de una persona (horario_fuente a
+  -- null), y el robot del calendario ya no la pisa: si vuelve a ver otra cosa,
+  -- lo apunta en horario_aviso y lo enseña en Admin. Y ese aviso, si lo habia,
+  -- se da por atendido: para eso acaba de repasarse la jornada.
   if p_id is null then
     insert into jornadas (numero, rival, en_casa, kickoff, cierre, hora_confirmada)
     values (p_numero, trim(p_rival), p_en_casa, p_kickoff, v_cierre, coalesce(p_hora_confirmada, false))
     on conflict (numero) do update
       set rival = excluded.rival, en_casa = excluded.en_casa,
           kickoff = excluded.kickoff, cierre = excluded.cierre,
-          hora_confirmada = excluded.hora_confirmada
+          hora_confirmada = excluded.hora_confirmada,
+          horario_fuente = null, horario_aviso = null
     returning id into v_id;
   else
     update jornadas set numero = p_numero, rival = trim(p_rival), en_casa = p_en_casa,
                         kickoff = p_kickoff, cierre = v_cierre,
-                        hora_confirmada = coalesce(p_hora_confirmada, false)
+                        hora_confirmada = coalesce(p_hora_confirmada, false),
+                        horario_fuente = null, horario_aviso = null
      where id = p_id returning id into v_id;
   end if;
 

@@ -554,18 +554,25 @@ async function pintarAdmin() {
     && +ahora() > +new Date(j.kickoff) - 45 * 6e4
     && +ahora() < +new Date(j.kickoff) + 3 * 36e5);
 
+  // El robot del calendario pone solo la hora oficial, pero nunca pisa una que
+  // hayas confirmado tú: cuando el club dice otra cosa, la deja apuntada aquí.
+  const discrepancias = js.filter(j => j.horario_aviso);
+  const repasado = js.map(j => j.horario_visto_en).filter(Boolean).sort().pop();
+
   v.innerHTML = `
   <div class="tarjeta">
     <h2>Jornadas</h2>
-    <p>El cierre se calcula solo: una hora antes del inicio.</p>
+    <p>El cierre se calcula solo: una hora antes del inicio. La hora oficial la trae sola la web del club, los lunes y los jueves${repasado ? `; la última vez, el ${fechaLarga(repasado)} a las ${hora(repasado)}` : ""}.</p>
+    ${discrepancias.map(j => aviso(`Jornada ${j.numero}, contra ${j.rival}: ${j.horario_aviso} `
+      + `Como esa hora la pusiste tú, no se ha tocado nada. Míralo y pulsa Editar en esa fila: al guardar, el aviso se quita.`, "error")).join("")}
     ${enApuros ? aviso(`El once de la jornada ${enApuros.numero} sigue sin aparecer y el partido empieza a las ${hora(enApuros.kickoff)}. `
       + `El robot lo busca cada cinco minutos en la web del club, pero ve marcándolo tú abajo en cuanto lo sepas: hasta que no haya once oficial no se reparten puntos.`, "error") : ""}
-    ${prox && sinHora(prox) ? aviso(`El próximo partido es la jornada ${prox.numero} y su hora todavía es orientativa. En cuanto LaLiga publique la definitiva, pulsa Editar en esa fila, corrige el día y la hora y marca «hora oficial»: el cierre se recalcula solo.`) : ""}
+    ${prox && sinHora(prox) ? aviso(`El próximo partido es la jornada ${prox.numero} y su hora todavía es orientativa. El robot la trae sola en cuanto el club la publique; si tiene prisa y ya la sabes, pulsa Editar en esa fila, corrige el día y la hora y marca «hora oficial»: el cierre se recalcula solo.`) : ""}
     <div class="tabla-scroll"><table>
       <thead><tr><th>J</th><th>Partido</th><th>Cierre</th><th>Estado</th><th></th></tr></thead>
       <tbody>${js.map(j => `<tr>
         <td>${j.numero}</td>
-        <td>${rotulo(j)}<br><span class="cuando">${cuandoHTML(j)}</span></td>
+        <td>${rotulo(j)}<br><span class="cuando">${cuandoHTML(j)}${j.horario_del_club ? " · la trajo el club" : ""}</span></td>
         <td>${hora(j.cierre)}${j.prorrogada ? " <span class='cuando'>(prorrogado)</span>" : ""}</td>
         <td>${j.publicada ? "puntuada" : j.cerrada ? "cerrada" : "abierta"}</td>
         <td>

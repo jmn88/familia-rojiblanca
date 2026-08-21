@@ -73,6 +73,18 @@ alter table jornadas add column if not exists once_propuesto_fuente text;
 alter table jornadas add column if not exists once_robot_intento timestamptz;
 alter table jornadas add column if not exists once_robot_motivo  text;
 
+-- El horario oficial lo carga solo un robot que lee el calendario de la web del
+-- club (ver sql/07_horario.sql). Aqui queda constancia de quien puso la hora:
+--   horario_fuente   null = la puso una persona (o nadie la ha tocado todavia);
+--                    con direccion, la cargo el robot y puede volver a moverla
+--   horario_visto_en ultima vez que el robot cuadro esta jornada con el club
+--   horario_aviso    discrepancia que el robot NO se atreve a aplicar porque la
+--                    hora la confirmo una persona; se enseña en Admin y se borra
+--                    en cuanto el administrador guarda esa jornada
+alter table jornadas add column if not exists horario_fuente   text;
+alter table jornadas add column if not exists horario_visto_en timestamptz;
+alter table jornadas add column if not exists horario_aviso    text;
+
 do $$ begin
   alter table jornadas add constraint convocatoria_min
     check (convocatoria is null or array_length(convocatoria,1) >= 11);

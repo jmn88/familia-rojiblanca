@@ -57,6 +57,18 @@ def avisos(datos):
         for f in filas)
 
 
+def horario(datos):
+    """La orden que aplica el calendario que ha leido robot/horario.py.
+
+    Va la lista entera en un solo json: quien decide que jornada se toca y cual
+    no es robot_horario(), en SQL, como en todo lo que importa."""
+    if not datos.get("ok"):
+        raise SystemExit("el robot no ha encontrado nada que guardar")
+    partidos = json.dumps(datos.get("partidos") or [], ensure_ascii=False)
+    return "select robot_horario(%s::json, %s);" % (texto(partidos),
+                                                    texto(datos.get("fuente") or ""))
+
+
 def nota(pendiente, motivo):
     """La orden que apunta un intento fallido del robot del once.
 
@@ -70,9 +82,14 @@ def nota(pendiente, motivo):
 
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
+    # Lo que llega trae acentos, y en Windows la entrada se lee con la pagina de
+    # codigos de la consola: sin esto, «Alavés» sale destrozado al probarlo aqui.
+    sys.stdin.reconfigure(encoding="utf-8")
     cual = sys.argv[1] if len(sys.argv) > 1 else ""
     if cual == "nota":
         print(nota(json.load(sys.stdin), sys.argv[2] if len(sys.argv) > 2 else ""))
+    elif cual == "horario":
+        print(horario(json.load(sys.stdin)))
     elif cual == "avisos":
         print(avisos(json.load(sys.stdin)))
     else:

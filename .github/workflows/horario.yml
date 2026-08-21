@@ -1,0 +1,73 @@
+# Carga sola el horario oficial de los partidos.
+#
+# LaLiga fija el dia y la hora exactos pocas semanas antes, y ademas los mueve.
+# El club publica su calendario entero en https://www.sevillafc.es/calendario/sevilla,
+# asi que este proceso lo repasa los lunes y los jueves y trae lo que falte:
+#
+#   * pone la hora oficial de las jornadas que aun la tenian orientativa;
+#   * si un partido ha cambiado de dia o de hora, lo corrige y lo cuenta aqui.
+#
+# Lo unico que no toca es una hora que haya confirmado una persona a mano: en ese
+# caso apunta la discrepancia y sale en rojo en el panel Admin, que es donde hay
+# alguien para decidir. Con el plazo ya cerrado tampoco se toca nada.
+#
+# Dos veces por semana basta y sobra: LaLiga publica los horarios de golpe, con
+# semanas de antelacion. Si algun dia se quiere mas a menudo, es cambiar el cron
+# de aqui abajo y ya esta.
+#
+# Usa el mismo secret que los demas, SUPABASE_DB_URL (la cadena "Session pooler"
+# de Supabase). Esta explicado en el README.
+#
+# Para lanzarlo a mano: pestaña Actions -> Cargar el horario oficial -> Run workflow.
+
+name: Cargar el horario oficial
+
+on:
+  schedule:
+    - cron: '0 7 * * 1,4'
+  workflow_dispatch:
+
+concurrency:
+  group: robot-sevilla
+  cancel-in-progress: false
+
+jobs:
+  cargar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Asegurar el cliente de PostgreSQL
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client)
+
+      - name: Repasar el calendario del club
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PGCONN:-}" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL. Esta explicado en el README."
+            exit 1
+          fi
+
+          # ¿que jornadas quedan por delante? Si no queda ninguna, ni se pide la pagina.
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_pendiente_horario();" > pendiente.json
+
+          python3 robot/horario.py < pendiente.json > resultado.json
+          cat resultado.json
+
+          leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
+
+          if [ "$(leer ok)" != "True" ]; then
+            echo "Sin tocar nada: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # La orden se arma en Python, ya escapada: psql no sustituye variables
+          # en las ordenes que se le pasan con -c, y eso hacia fallar esto entero.
+          python3 robot/orden_sql.py horario < resultado.json > orden.sql
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden.sql > guardado.json
+          cat guardado.json
+
+          python3 robot/resumen_horario.py resultado.json guardado.json >> "$GITHUB_STEP_SUMMARY"
