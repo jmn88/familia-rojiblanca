@@ -65,10 +65,11 @@ navegador.
   elegir. A quien ya hubiera enviado un once con alguno, se le avisa (su
   alineación sigue contando, ver «Decisiones»).
 - Cuenta atrás hasta el cierre, y aviso si LaLiga aún no ha confirmado la hora.
-- **Avisos por correo**: la primera vez que entras se te pregunta si quieres que
-  te recuerden la alineación (con un «Ahora no» que no vuelve a insistir).
-  Después, la tarjeta se queda al final para cambiar el correo, apagarlo o
-  borrarlo. Ver «Los robots» y «Decisiones».
+- **Avisos por correo**: la primera vez que entras se te pregunta si los
+  quieres (con un «Ahora no» que no vuelve a insistir). Después, la tarjeta se
+  queda al final para cambiar el correo, apagarlo o borrarlo. Hay dos clases de
+  aviso: cuando se conoce la convocatoria y cuando faltan 3 horas y no has
+  enviado. Ver «Los robots» y «Decisiones».
 
 ### Jornada
 - Antes del cierre: solo se ve **quién ha enviado ya**, nunca qué.
@@ -155,9 +156,11 @@ navegador.
   calcula en el navegador con `kickoff`, sin estado nuevo) y enseña el último
   intento del robot (`once_robot_intento` / `once_robot_motivo`).
 
-### Los avisos por correo (issue #3)
+### Los avisos por correo (issues #3 y #5)
 - **Voluntario y de cada uno.** Se le pregunta la primera vez que entra
-  (`avisos_preguntado`, para no volver a insistir a quien dijo que no).
+  (`avisos_preguntado`, para no volver a insistir a quien dijo que no). El «sí»
+  vale para las dos clases de aviso: no se pregunta por separado, que serían dos
+  interruptores para seis personas que quieren lo mismo.
 - **El correo se guarda cifrado** con `pgp_sym_encrypt` y la llave vive en la
   fila `email_clave` de `config`. Ninguna función `api_*` lo devuelve nunca: solo
   sale `email_pista` (`j***@gmail.com`), que se guarda aparte para poder
@@ -171,8 +174,18 @@ navegador.
   cuenta personal de Google. Dos secrets: `BREVO_API_KEY` y `BREVO_REMITENTE`.
 - **No se manda si ya se conoce el once** (`once_oficial` o `once_propuesto`):
   a esas alturas el plazo está cerrado de hecho y el aviso solo fastidiaría.
-- **Un aviso por persona y jornada** (tabla `recordatorios`), apuntado
-  **después** de que el correo salga: si falla, se reintenta al cuarto de hora.
+- **Un aviso de cada clase por persona y jornada** (tabla `recordatorios`, con
+  columna `tipo`: `'alineacion'` o `'convocatoria'`), apuntado **después** de que
+  el correo salga: si falla, se reintenta al cuarto de hora. La tabla nació con
+  la clave `(jornada, participante)` y el `tipo` se le metió dentro después: si
+  no, el aviso de la convocatoria taparía al de la alineación.
+- **El de la convocatoria (issue #5) va a todo el que tenga avisos**, haya
+  enviado su once o no: al que no, le sirve de recordatorio; al que sí, para
+  enterarse de si le han dejado fuera a alguno de los suyos. El correo lleva la
+  lista de convocados, el rival, la hora, y a cada uno lo suyo (`enviada` y
+  `fuera`, que los calcula SQL).
+- **Nunca dos correos a la vez.** Si a alguien le tocan los dos en el mismo pase,
+  sale el de la convocatoria y el otro espera al siguiente cuarto de hora.
 - **Se manda aunque la hora no esté confirmada**, diciéndolo en el propio correo.
   `hora_confirmada` es una marca que pone el admin a mano, y si se le olvida el
   partido se juega igual: callarse sería peor.
@@ -187,7 +200,7 @@ en segundos.
 |---|---|---|---|
 | `convocatoria.yml` | 30 min | desde 1 día antes, con el plazo abierto | Carga la convocatoria |
 | `once.yml` | 5 min | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
-| `avisos.yml` | 15 min | desde 3 h antes, con el plazo abierto y sin once | Recuerda por correo a quien no ha enviado |
+| `avisos.yml` | 15 min | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
 
 - Los datos salen de **la web del club**, que publica ambas cosas en texto dentro
   del HTML servido: la convocatoria en «La lista completa la forman: …» y el once
@@ -341,8 +354,17 @@ datos real con las nueve comprobaciones nuevas (el correo cifrado, que no salga
 en claro por `api_estado` ni `api_jornada`, a quién toca avisar, que no se avise
 dos veces); toda la pantalla de avisos en el navegador contra la demo; el
 recorrido de `robot/avisos.py` fingiendo el envío; y la web publicada carga.
-Jesús ya tiene su correo puesto. **Lo único sin estrenar es un envío de verdad
-por Brevo**: los secrets están dados de alta pero ningún correo ha salido aún.
+Jesús ya tiene su correo puesto y los secrets de Brevo están dados de alta.
+**Sin estrenar todavía: un envío de verdad.**
+
+**El aviso de la convocatoria (issue #5) está escrito pero NO en producción**
+(agosto de 2026). Reutiliza entero lo del #3: misma tabla, mismo proceso, mismo
+correo cifrado; lo nuevo es la columna `tipo` de `recordatorios` y la segunda
+mitad de `robot_avisos_pendientes()`. Comprobado en local: los tres correos que
+puede mandar (con jugadores tuyos fuera de la convocatoria, sin alineación
+enviada, y con todo en orden), que el fallo de uno no se apunte y que ningún
+correo acabe en los registros. **Sin comprobar**: el SQL, que lo dirá la
+autoprueba.
 
 ## Pendiente
 
@@ -361,6 +383,7 @@ por Brevo**: los secrets están dados de alta pero ningún correo ha salido aún
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
 6. **El primer envío de verdad de un aviso**, que aún no ha salido ninguno.
+   Vale para las dos clases.
    Para probarlo sin esperar al partido hay que adelantar el `kickoff` de la
    próxima jornada desde Admin (a unas 2 horas vista: menos de 3 para que entre
    en la ventana, pero más de 1h30 para no despertar al robot del once), lanzar

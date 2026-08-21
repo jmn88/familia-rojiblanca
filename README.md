@@ -152,8 +152,9 @@ base de datos y nunca salen de ella.
 - **Clasificación general**: acumulado de las 38 jornadas. Los empates se
   muestran como tales (dos primeros, ningún segundo).
 - Quien no envía alineación figura como **no participó**, con 0 puntos.
-- **Aviso por correo** (opcional, lo activa cada uno): si tres horas antes del
-  partido no has enviado tu once, te llega un recordatorio. Ver más abajo.
+- **Avisos por correo** (opcionales, los activa cada uno): uno en cuanto se
+  conoce la convocatoria, con la lista de convocados, y otro tres horas antes
+  del partido si sigues sin enviar tu once. Ver más abajo.
 
 ## La convocatoria se carga sola
 
@@ -215,12 +216,24 @@ arrastra a la otra si falla.
 > cobra por leer publicaciones y habría que darle una tarjeta. La web del club da
 > lo mismo, gratis y en texto limpio.
 
-## El aviso por correo
+## Los avisos por correo
 
-Si a alguien se le olvida mandar su once, la web se lo recuerda: **tres horas
-antes del partido**, a quien tenga los avisos puestos y no haya enviado nada le
-llega un correo. Un aviso por persona y jornada, y nada más — ni resultados, ni
-clasificaciones.
+La web escribe a quien quiera, y solo por dos motivos:
+
+- **«Ya hay convocatoria»**, en cuanto se sabe a quién ha convocado el Sevilla
+  (la cargue el robot o la cargues tú a mano). Lleva la lista de convocados, el
+  rival y la hora del partido. Va a todo el que tenga avisos: al que no ha
+  enviado su once le sirve de aviso de que ya puede, y al que sí, para enterarse
+  de si le han dejado fuera a alguno de los suyos — en ese caso el correo se lo
+  dice con nombre y apellidos.
+- **«Te falta la alineación»**, tres horas antes del partido, solo a quien sigue
+  sin enviar nada.
+
+Uno de cada clase por persona y jornada, y nada más — ni resultados, ni
+clasificaciones. Si a alguien le tocaran los dos a la vez (porque la
+convocatoria llega ya con el partido encima), sale primero el de la
+convocatoria y el otro espera al siguiente cuarto de hora: dos correos de golpe
+son uno de más.
 
 Es **voluntario y lo decide cada uno**. La primera vez que entras con tu nombre
 te sale la pregunta arriba del todo, con un *Ahora no* que la quita para
@@ -233,9 +246,10 @@ de participantes de Admin verás quién tiene avisos, pero solo como
 `j***@gmail.com`. Lo único que lo descifra es el proceso que manda el correo.
 
 Un proceso de GitHub (`.github/workflows/avisos.yml`) mira cada cuarto de hora.
-Como en los otros robots, quien decide si toca es la base de datos: fuera de esas
-tres horas se va de vacío en segundos. Y no avisa si el once ya se conoce (el
-plazo está cerrado de hecho) ni a quien ya envió.
+Como en los otros robots, quien decide si toca es la base de datos: fuera de la
+ventana se va de vacío en segundos. Y no escribe a nadie si el once ya se conoce,
+porque a esas alturas el plazo está cerrado de hecho y el correo solo
+fastidiaría.
 
 ### Darlo de alta (una vez)
 

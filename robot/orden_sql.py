@@ -44,13 +44,17 @@ def orden(cual, datos):
 def avisos(datos):
     """Las ordenes que apuntan los recordatorios que SI han salido.
 
-    Una por persona, y solo de las enviadas: si a alguien le fallo el correo, no
-    se apunta y se le vuelve a intentar en el siguiente pase."""
+    Una por persona y clase de aviso, y solo de las que han salido: si a alguien
+    le fallo el correo, no se apunta y se le vuelve a intentar en el siguiente
+    pase."""
     jornada = int(datos["jornada_id"])
-    ids = [int(i) for i in datos.get("enviados") or []]
-    if not ids:
+    filas = datos.get("enviados") or []
+    if not filas:
         raise SystemExit("no ha salido ningun aviso que apuntar")
-    return "\n".join("select robot_aviso_enviado(%d, %d);" % (jornada, i) for i in ids)
+    return "\n".join(
+        "select robot_aviso_enviado(%d, %d, %s);"
+        % (jornada, int(f["participante_id"]), texto(f.get("tipo") or "alineacion"))
+        for f in filas)
 
 
 def nota(pendiente, motivo):

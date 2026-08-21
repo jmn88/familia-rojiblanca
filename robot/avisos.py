@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Manda los recordatorios de alineacion que ha decidido la base de datos.
+"""Manda los avisos por correo que ha decidido la base de datos.
 
 Lee por la entrada lo que devuelve robot_avisos_pendientes() —el partido y a
-quien hay que avisar, con su correo ya descifrado— y manda un correo a cada uno
-a traves de Brevo.
+quien hay que escribir, con su correo ya descifrado— y manda un correo a cada
+uno a traves de Brevo. Hay dos clases, y cada aviso trae la suya en 'tipo':
+
+    convocatoria   ya se sabe a quien ha convocado el Sevilla
+    alineacion     faltan 3 horas y esa persona sigue sin enviar su once
 
 Por la salida escupe lo que ha hecho, en JSON y SIN correos: solo nombres. Los
 registros de GitHub Actions de un repositorio publico los puede leer cualquiera,
@@ -58,35 +61,101 @@ def cuando(local, hoy):
                                         t.strftime("%H:%M"))
 
 
-# ------------------------------------------------------------- el correo ---
+# ------------------------------------------------- trozos que se repiten ---
 
-def mensaje(nombre, j, hoy):
-    partido = ("Sevilla – %s" if j["en_casa"] else "%s – Sevilla") % j["rival"]
-    asunto = "Te falta la alineación · Jornada %d · %s" % (j["numero"], partido)
+def partido_de(j):
+    return ("Sevilla – %s" if j["en_casa"] else "%s – Sevilla") % j["rival"]
 
+
+def enumerar(nombres):
+    """«Marcao», «Marcao y Alfon», «Marcao, Alfon y Peque»."""
+    if len(nombres) == 1:
+        return nombres[0]
+    return ", ".join(nombres[:-1]) + " y " + nombres[-1]
+
+
+def cierre_de(j):
+    return ("El plazo cierra a las %s —una hora antes del partido, o antes si el Sevilla "
+            "publica el once—. Después ya no se admiten envíos ni cambios."
+            % hora(j["cierre_local"]))
+
+
+def sin_hora(j):
+    if j.get("hora_confirmada") is False:
+        return ["", "(LaLiga aún no ha confirmado la hora de este partido, así que tanto "
+                    "ella como el cierre pueden moverse.)"]
+    return []
+
+
+def pie(enlace="Manda tu once aquí:"):
+    return ["", enlace, WEB, "", "—",
+            "Familia Rojiblanca. Recibes este aviso porque lo activaste tú. Para dejar de "
+            "recibirlos, entra en la web, ve a «Mi alineación» y apágalos abajo del todo."]
+
+
+# --------------------------------------------------------- los dos correos ---
+
+def mensaje_alineacion(a, j, hoy):
+    partido = partido_de(j)
     lineas = [
-        "Hola %s:" % nombre,
+        "Hola %s:" % a["nombre"],
         "",
         "Todavía no has enviado tu alineación para la jornada %d, %s, que se juega %s."
         % (j["numero"], partido, cuando(j["kickoff_local"], hoy)),
         "",
-        "El plazo cierra a las %s —una hora antes del partido, o antes si el Sevilla "
-        "publica el once—. Después ya no se admiten envíos ni cambios." % hora(j["cierre_local"]),
-    ]
-    if j.get("hora_confirmada") is False:
-        lineas += ["", "(LaLiga aún no ha confirmado la hora de este partido, "
-                       "así que tanto ella como el cierre pueden moverse.)"]
-    lineas += [
-        "",
-        "Manda tu once aquí:",
-        WEB,
-        "",
-        "—",
-        "Familia Rojiblanca. Recibes este aviso porque lo activaste tú. Para dejar de "
-        "recibirlos, entra en la web, ve a «Mi alineación» y apágalos abajo del todo.",
-    ]
-    return asunto, "\n".join(lineas)
+        cierre_de(j),
+    ] + sin_hora(j) + pie()
+    return "Te falta la alineación · Jornada %d · %s" % (j["numero"], partido), "\n".join(lineas)
 
+
+def mensaje_convocatoria(a, j, hoy):
+    partido = partido_de(j)
+    convocados = j.get("convocados") or []
+    fuera = a.get("fuera") or []
+
+    lineas = [
+        "Hola %s:" % a["nombre"],
+        "",
+        "Ya se conoce la convocatoria del Sevilla para la jornada %d, %s, que se juega %s."
+        % (j["numero"], partido, cuando(j["kickoff_local"], hoy)),
+        "",
+        "Convocados (%d):" % len(convocados),
+    ]
+    lineas += ["  %2s  %s" % (c.get("dorsal") if c.get("dorsal") is not None else "·", c["nombre"])
+               for c in convocados]
+    lineas += ["", "A partir de ahora solo se puede alinear a estos."]
+
+    # y lo que le toca a cada uno segun como tenga su once
+    if fuera:
+        lineas += [
+            "",
+            "OJO: en tu alineación tienes a %s, que se %s quedado fuera. Tu alineación "
+            "sigue contando tal cual, pero %s acertar, porque no %s a salir en el once "
+            "inicial: te interesa cambiar%s antes del cierre."
+            % (enumerar(fuera),
+               "ha" if len(fuera) == 1 else "han",
+               "ese jugador no puede" if len(fuera) == 1 else "esos jugadores no pueden",
+               "va" if len(fuera) == 1 else "van",
+               "lo" if len(fuera) == 1 else "los"),
+        ]
+    elif not a.get("enviada"):
+        lineas += ["", "Todavía no has enviado tu alineación."]
+    else:
+        lineas += ["", "Tu alineación ya está enviada y todos los tuyos están convocados: "
+                       "no tienes que hacer nada."]
+
+    lineas += ["", cierre_de(j)] + sin_hora(j) + pie(
+        "Repasa o cambia tu once aquí:" if a.get("enviada") else "Manda tu once aquí:")
+    return "Ya hay convocatoria · Jornada %d · %s" % (j["numero"], partido), "\n".join(lineas)
+
+
+def mensaje(a, j, hoy):
+    if a.get("tipo") == "convocatoria":
+        return mensaje_convocatoria(a, j, hoy)
+    return mensaje_alineacion(a, j, hoy)
+
+
+# ---------------------------------------------------------------- enviar ---
 
 def como_html(texto):
     """El mismo texto, para los clientes de correo que prefieren HTML."""
@@ -128,10 +197,10 @@ def main():
     pendientes = datos.get("avisos") or []
 
     if not jornada:
-        return salir({"ok": False, "motivo": "no hay ningun partido en las proximas 3 horas"})
+        return salir({"ok": False, "motivo": "no hay ningun partido esperando avisos"})
     if not pendientes:
         return salir({"ok": False, "jornada": jornada["numero"],
-                      "motivo": "no hay a quien avisar: o han enviado ya, o no tienen avisos"})
+                      "motivo": "no hay a quien avisar: o ya lo saben, o no tienen avisos"})
 
     clave     = (os.environ.get("BREVO_API_KEY") or "").strip()
     remitente = (os.environ.get("BREVO_REMITENTE") or "").strip()
@@ -142,16 +211,19 @@ def main():
 
     enviados, nombres, fallos = [], [], []
     for a in pendientes:
-        asunto, texto = mensaje(a["nombre"], jornada, datos.get("hoy"))
+        tipo = a.get("tipo") or "alineacion"
+        asunto, texto = mensaje(a, jornada, datos.get("hoy"))
         try:
             mandar(clave, remitente, a["email"], a["nombre"], asunto, texto)
-            enviados.append(int(a["participante_id"]))
-            nombres.append(a["nombre"])
+            enviados.append({"participante_id": int(a["participante_id"]), "tipo": tipo})
+            nombres.append("%s (%s)" % (a["nombre"], tipo))
         except urllib.error.HTTPError as e:
             detalle = sin_correos(e.read().decode("utf-8", "replace"))[:200]
-            fallos.append({"nombre": a["nombre"], "motivo": "Brevo contesta %d: %s" % (e.code, detalle)})
+            fallos.append({"nombre": a["nombre"], "tipo": tipo,
+                           "motivo": "Brevo contesta %d: %s" % (e.code, detalle)})
         except Exception as e:                       # red caida, tiempo agotado…
-            fallos.append({"nombre": a["nombre"], "motivo": sin_correos(str(e))[:200]})
+            fallos.append({"nombre": a["nombre"], "tipo": tipo,
+                           "motivo": sin_correos(str(e))[:200]})
 
     salir({"ok": bool(enviados),
            "jornada_id": jornada["id"], "jornada": jornada["numero"],
