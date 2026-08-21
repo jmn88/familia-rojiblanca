@@ -65,6 +65,9 @@ navegador.
 ### Mi alineación
 - Entrar con el nombre (desplegable) y un PIN de 4 dígitos. El primero que
   escribes queda fijado como el tuyo.
+- **Pedir entrar**: quien no esté en la lista puede solicitarlo desde esa misma
+  pantalla (nombre, PIN y correo si quiere avisos). No entra hasta que Jesús lo
+  aprueba, y a él le llega un correo. Ver «Decisiones».
 - Elegir 11 jugadores de la plantilla, con el once dibujado sobre un campo.
 - Se puede cambiar las veces que haga falta hasta el cierre; vale la última
   versión guardada.
@@ -98,6 +101,8 @@ navegador.
   foto del club y se lee en el propio navegador. Se repasa y se guarda.
 - **Once inicial**: el robot lo deja propuesto y el administrador lo confirma con
   «Usar esta propuesta» + Guardar. También se puede marcar a mano.
+- **Solicitudes para entrar**: quién ha pedido jugar, con Aprobar y Rechazar, y
+  a quién se le avisa por correo cuando llega una.
 - **Participantes**: alta y reinicio de PIN, y quién tiene avisos por correo
   (solo la pista, `j***@gmail.com`: el administrador tampoco lo ve entero).
 - **Plantilla**: altas, bajas, dorsales y posiciones.
@@ -200,6 +205,31 @@ navegador.
   calcula en el navegador con `kickoff`, sin estado nuevo) y enseña el último
   intento del robot (`once_robot_intento` / `once_robot_motivo`).
 
+### Las solicitudes para entrar (issue #11)
+- **Una solicitud NO es un participante.** Vive en su propia tabla
+  (`solicitudes`) hasta que se aprueba. Se descartó una columna `aprobado` dentro
+  de `participantes` por un motivo concreto: media docena de consultas listan
+  participantes (clasificación, jornada, avisos, desplegable de entrar) y basta
+  olvidarse de filtrar en una para que alguien sin aprobar aparezca donde no
+  debe. Con la tabla aparte eso no puede pasar.
+- **El PIN y el correo se guardan ya cifrados en la solicitud** y al aprobar solo
+  se mudan de columna. Así el administrador nunca ve el PIN y el nuevo entra con
+  el que eligió, sin tener que ponerlo otra vez. Al aprobar se le deja
+  `avisos_preguntado` a true: ya dijo si quería avisos al pedir entrar.
+- **Al rechazar se le borran el PIN y el correo** y se queda el nombre y la
+  fecha, para que conste. Puede volver a pedirlo.
+- **`api_solicitar` la puede llamar cualquiera** con la clave pública, así que
+  lleva freno: 5 solicitudes por hora y 20 pendientes como mucho. Es la única
+  función de la web que escribe sin sesión.
+- **El aviso al administrador reutiliza el correo de un participante**, el que
+  diga `config.admin_participante` (se deja apuntado Jesús y se cambia desde
+  Admin). Se descartó guardar un correo aparte para el administrador: sería un
+  segundo sitio donde cifrar y mantener lo mismo, y Jesús ya tiene el suyo.
+- **Un solo correo con todas las solicitudes sin avisar**, no uno por cada una,
+  y va por el proceso de los avisos (`avisos.yml`, cada cuarto de hora) en su
+  propio paso, el primero: si a un aviso de alineación le falla el envío, ese
+  paso acaba en rojo y no debe llevarse por delante el de las solicitudes.
+
 ### Los avisos por correo (issues #3 y #5)
 - **Voluntario y de cada uno.** Se le pregunta la primera vez que entra
   (`avisos_preguntado`, para no volver a insistir a quien dijo que no). El «sí»
@@ -245,6 +275,7 @@ vacío en segundos.
 | `convocatoria.yml` | 30 min | desde las 10:00 de la víspera, con el plazo abierto | Carga la convocatoria |
 | `once.yml` | 5 min | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
 | `avisos.yml` | 15 min | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
+| `avisos.yml` (1er paso) | 15 min | solicitudes pendientes sin avisar | Le dice al administrador que alguien quiere entrar |
 | `horario.yml` | lunes y jueves | jornadas con el plazo abierto | Trae el horario oficial del calendario del club |
 
 - Los datos salen de **la web del club**, que publica todo en texto dentro del
@@ -296,6 +327,7 @@ robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
 robot/once.py         busca el once inicial y lo deja PROPUESTO, sin publicar
 robot/horario.py      lee el calendario del club y saca el horario oficial
 robot/avisos.py       manda por Brevo los recordatorios que decide SQL
+robot/solicitudes.py  avisa al administrador de quien ha pedido entrar
 robot/orden_sql.py    arma la orden de SQL, ya escapada, que guarda el resultado
 robot/resumen_horario.py  el resumen del calendario que sale en Actions
 css/estilos.css
@@ -306,6 +338,7 @@ sql/04_calendario.sql jornadas 2 a 38 del sorteo oficial, con hora tentativa
 sql/05_robot.sql      funciones del robot; cerradas al rol anónimo a propósito
 sql/06_avisos.sql     avisos por correo: correo cifrado y a quién toca avisar
 sql/07_horario.sql    el robot del horario oficial; cerrado al rol anónimo
+sql/08_solicitudes.sql  pedir entrar en la porra y aprobarlo
 sql/99_autoprueba.sql prueba de extremo a extremo; no deja rastro
 data/seed.json        los mismos datos de partida en JSON, como referencia
 ```
@@ -449,14 +482,21 @@ clase**, que saldrá solo con la primera convocatoria que se cargue.
 La ventana de la convocatoria (10:00 de la víspera, PR #8) también está
 aplicada y con la autoprueba pasada.
 
-**El horario automático (issue #7) está escrito pero aún NO aplicado.** Lo
-comprobado hasta ahora: `robot/horario.py` contra el calendario real del club
-(las 37 jornadas que quedaban, ninguna dudosa, con las tres que ya tenían hora
-oficial bien detectadas); el aviso en rojo de Admin y que se quite al guardar la
-jornada, en el navegador contra la demo; y que el workflow es YAML válido. Lo que
-falta, porque aquí no hay PostgreSQL: **pasar `sql/99_autoprueba.sql`** en el SQL
-Editor de Supabase (lleva trece comprobaciones nuevas del robot del horario) y
-ver el primer pase de verdad.
+**El horario automático (issue #7) está en producción** desde el 21 de agosto de
+2026 (PR #9). Comprobado: la autoprueba pasa contra la base de datos real con
+las trece comprobaciones nuevas, y `robot/horario.py` lee bien el calendario del
+club (37 jornadas, ninguna dudosa). **Falta verle hacer un pase de verdad**: el
+proceso no se había ejecutado todavía cuando se cerró la issue.
+
+**Las solicitudes para entrar (issue #11) están escritas pero aún NO aplicadas.**
+Comprobado en el navegador contra la demo, de punta a punta: pedir entrar con
+sus validaciones (nombre corto, PIN corto, nombre repetido, nombre que ya juega,
+correo malo), que el que lo pide no aparece en la lista de entrar hasta que se
+apruebe, aprobar (pasa a participante, con sus avisos, y entra con SU PIN, que
+el equivocado se rechaza), y rechazar. También el recorrido de
+`robot/solicitudes.py` fingiendo el envío, con sus tres caminos. Lo que falta,
+porque aquí no hay PostgreSQL: **pasar `sql/99_autoprueba.sql`** (lleva
+veintisiete comprobaciones nuevas) y ver el primer correo de verdad.
 
 ## Pendiente
 
@@ -464,21 +504,25 @@ ver el primer pase de verdad.
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
    siempre en rojo** — lanza una excepción para revertir lo que crea; lo que vale
    es el mensaje (`AUTOPRUEBA: TODO CORRECTO`).
-2. **El robot del horario no se ha estrenado en un pase de verdad.** Se probó
-   contra el calendario real del club (37 jornadas leídas, ninguna dudosa), pero
-   aún no ha escrito en la base de datos él solo. Conviene mirar el primer lunes
-   o jueves que le toque, en Actions → «Cargar el horario oficial»: el resumen
-   dice qué ha cambiado y qué ha dejado sin tocar. Corregir una hora a mano desde
-   Admin sigue funcionando igual, y a partir de ahí esa jornada es tuya.
-3. **La plantilla** está pendiente del cierre del mercado de septiembre de 2026.
+2. **El robot del horario no se ha estrenado en un pase de verdad.** Ya está en
+   producción, pero su cron es lunes y jueves y aún no le ha tocado. Cuando corra
+   (o al lanzarlo a mano desde Actions → «Cargar el horario oficial») debería
+   poner la hora oficial de la jornada 3 —el club dice 21:30 y aquí hay 21:00— y
+   marcar como oficial la de la 4, que ya coincide. El resumen dice qué ha
+   cambiado y qué ha dejado sin tocar.
+3. **El aviso de que alguien quiere entrar no se ha estrenado.** Saldrá con la
+   primera solicitud de verdad. Para probarlo sin esperar: pedir entrar desde la
+   web con un nombre cualquiera, lanzar «Avisos por correo» a mano desde Actions
+   y luego rechazar esa solicitud.
+4. **La plantilla** está pendiente del cierre del mercado de septiembre de 2026.
    Se ajusta desde Admin.
-4. **El robot del once no se ha estrenado en un partido de verdad**: se probó con
+5. **El robot del once no se ha estrenado en un partido de verdad**: se probó con
    el texto real ya publicado, pero aún no ha cazado una alineación él solo.
    Conviene mirar la primera con calma.
-5. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
+6. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
-6. **Ver el primer aviso de convocatoria de verdad**: saldrá solo en cuanto se
+7. **Ver el primer aviso de convocatoria de verdad**: saldrá solo en cuanto se
    cargue una convocatoria con alguien que tenga los avisos encendidos.
    Para probar un aviso sin esperar al partido: adelantar el `kickoff` de la
    próxima jornada desde Admin (a unas 2 horas vista: menos de 3 para que entre
@@ -486,7 +530,7 @@ ver el primer pase de verdad.
    el proceso a mano desde Actions, y luego **devolver la hora a su sitio y
    borrar la fila de `recordatorios`** — si no, esa persona se queda sin el aviso
    de verdad de esa jornada. Ya pasó: hubo que borrarla a mano.
-7. **Quién tiene avisos por correo cambia solo**, según va entrando cada uno y
+8. **Quién tiene avisos por correo cambia solo**, según va entrando cada uno y
    diciendo que sí. No lo apuntes aquí: se mira en Admin → Participantes, que es
    donde está la verdad. A quien no haya entrado todavía no se le pregunta, y
    hasta entonces no recibe nada.

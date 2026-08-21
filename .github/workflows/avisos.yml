@@ -1,9 +1,11 @@
-# Los avisos por correo, de las dos clases que hay:
+# Los avisos por correo. Hay tres clases, y las tres salen de aquí:
 #
 #   - «ya hay convocatoria», en cuanto se sabe a quién ha convocado el Sevilla,
 #     con la lista, el rival y la hora. Va a todo el que tenga avisos.
 #   - «te falta la alineación», tres horas antes del partido, solo a quien
 #     sigue sin enviar su once.
+#   - «alguien quiere entrar en la porra», al administrador, cuando llega una
+#     solicitud nueva desde la web. Va en su propio paso, el primero.
 #
 # Mira cada cuarto de hora. Quien decide a quién hay que escribir, y de qué, es
 # la base de datos (robot_avisos_pendientes): hace falta que sea el próximo
@@ -47,6 +49,50 @@ jobs:
 
       - name: Asegurar el cliente de PostgreSQL
         run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client)
+
+      # Va antes que los avisos de las alineaciones a proposito: si a alguno de
+      # esos le falla el correo, el paso acaba en rojo con exit 1, y no conviene
+      # que eso se lleve por delante el aviso de las solicitudes.
+      - name: Avisar de las solicitudes para entrar
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_REMITENTE: ${{ secrets.BREVO_REMITENTE }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PGCONN:-}" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL. Esta explicado en el README."
+            exit 1
+          fi
+
+          # Este fichero lleva el correo del administrador: no se imprime.
+          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_solicitudes_pendientes();" > solicitudes.json
+
+          python3 robot/solicitudes.py < solicitudes.json > hecho.json
+          cat hecho.json              # este si: solo lleva nombres
+
+          leer() { python3 -c "import json; d=json.load(open('hecho.json')); print(d.get('$1',''))"; }
+
+          if [ "$(leer ok)" != "True" ]; then
+            echo "Solicitudes: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+            # Que falte a quien avisar no es un fallo del proceso; que Brevo
+            # rechace el correo si, y conviene enterarse.
+            if [ "$(leer n_fallos)" = "1" ]; then
+              echo "::error::No ha salido el aviso de las solicitudes — $(leer motivo)"
+              exit 1
+            fi
+          else
+            python3 robot/orden_sql.py solicitudes < hecho.json > orden-sol.sql
+            cat orden-sol.sql
+            psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden-sol.sql > /dev/null
+
+            {
+              echo "## Solicitudes para entrar avisadas"
+              echo ""
+              python3 -c "import json; [print('- '+n) for n in json.load(open('hecho.json'))['nombres']]"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Avisar a quien haga falta
         env:

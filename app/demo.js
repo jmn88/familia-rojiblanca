@@ -4,7 +4,7 @@
    La web de verdad (index.html) usa app/api.js y la base de datos real. */
 
 const API = (function () {
-  const CLAVE = "fr_demo_v7";   // al cambiar los datos de ejemplo se sube el número
+  const CLAVE = "fr_demo_v8";   // al cambiar los datos de ejemplo se sube el número
   const dia = 864e5;
 
   const NOMBRES = ["Andrii", "Chiquitín", "Javi", "Jesús", "Tio P", "Tito"];
@@ -54,6 +54,11 @@ const API = (function () {
 
     return {
       participantes, jugadores, alineaciones, admin_pass: null, sesiones: {},
+      // una solicitud de ejemplo esperando, para ver cómo se aprueba
+      solicitudes: [{ id: 1, nombre: "Curro (ejemplo)", email_pista: "c***@correo.com",
+                      avisos: true, estado: "pendiente",
+                      creada_en: new Date(Date.now() - 3 * 36e5).toISOString() }],
+      avisar_a: 4,                                  // Jesús, el administrador
       jornadas: [
         { id: 1, numero: 1, rival: "Girona (ejemplo)", en_casa: false, kickoff: kick1.toISOString(),
           cierre: new Date(kick1.getTime() - 36e5).toISOString(), prorroga_hasta: null,
@@ -129,6 +134,9 @@ const API = (function () {
           horario_visto_en: s?.es_admin ? (j.horario_visto_en || null) : null,
           publicada: Boolean(j.once_oficial)
         })),
+        solicitudes: s?.es_admin
+          ? (db.solicitudes || []).filter(x => x.estado === "pendiente") : null,
+        avisar_a: s?.es_admin ? (db.avisar_a ?? null) : null,
         sesion: s ? (() => {
           const p = db.participantes.find(x => x.id === s.participante_id);
           return { participante_id: s.participante_id, es_admin: Boolean(s.es_admin),
@@ -300,6 +308,62 @@ const API = (function () {
       j.once_oficial = p_picks || null;
       salvar();
       return ok({ publicada: Boolean(p_picks) });
+    },
+
+    // Pedir entrar. Como en la de verdad, esto NO abre sesión: deja la solicitud
+    // esperando a que el administrador la apruebe.
+    api_solicitar: ({ p_nombre, p_pin, p_email }) => {
+      const nombre = (p_nombre || "").trim().replace(/\s+/g, " ");
+      if (nombre.length < 2 || nombre.length > 30) return mal("El nombre tiene que tener entre 2 y 30 letras");
+      if (!/^\d{4}$/.test((p_pin || "").trim())) return mal("El PIN son 4 dígitos");
+      const igual = x => x.nombre.toLowerCase() === nombre.toLowerCase();
+      if (db.participantes.some(igual)) return mal("Ya hay alguien con ese nombre en la porra. Si eres tú, entra eligiéndolo en la lista.");
+      if ((db.solicitudes || []).some(x => x.estado === "pendiente" && igual(x)))
+        return mal("Ya hay una solicitud con ese nombre esperando a que la aprueben.");
+
+      const email = (p_email || "").trim();
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email))
+        return mal("Ese correo no tiene buena pinta. Repásalo, tiene que ser del estilo nombre@correo.com");
+      const pista = email ? email[0] + "***@" + email.split("@")[1] : null;
+
+      db.solicitudes = db.solicitudes || [];
+      db.solicitudes.push({ id: Math.max(0, ...db.solicitudes.map(x => x.id)) + 1,
+                            nombre, pin: p_pin.trim(), email_pista: pista,
+                            avisos: Boolean(email), estado: "pendiente",
+                            creada_en: new Date().toISOString() });
+      salvar();
+      return ok({ nombre, email_pista: pista });
+    },
+
+    api_admin_solicitud: ({ p_token, p_id, p_aprobar }) => {
+      if (!sesion(p_token)?.es_admin) return mal("No autorizado");
+      const so = (db.solicitudes || []).find(x => x.id === p_id);
+      if (!so) return mal("Solicitud no encontrada");
+      if (so.estado !== "pendiente") return mal("Esa solicitud ya estaba resuelta");
+
+      if (!p_aprobar) {
+        Object.assign(so, { estado: "rechazada", pin: null, email_pista: null, avisos: false });
+        salvar();
+        return ok({ aprobada: false, nombre: so.nombre });
+      }
+      if (db.participantes.some(x => x.nombre.toLowerCase() === so.nombre.toLowerCase()))
+        return mal("Ya hay un participante con ese nombre: resuélvelo antes de aprobar esta");
+
+      const id = Math.max(0, ...db.participantes.map(x => x.id)) + 1;
+      db.participantes.push({ id, nombre: so.nombre, pin: so.pin, email_pista: so.email_pista,
+                              avisos: so.avisos, avisos_preguntado: true });
+      so.estado = "aprobada";
+      salvar();
+      return ok({ aprobada: true, nombre: so.nombre, participante_id: id });
+    },
+
+    api_admin_avisar_a: ({ p_token, p_participante }) => {
+      if (!sesion(p_token)?.es_admin) return mal("No autorizado");
+      if (p_participante != null && !db.participantes.some(x => x.id === p_participante))
+        return mal("Ese participante no existe");
+      db.avisar_a = p_participante ?? null;
+      salvar();
+      return ok({ participante_id: db.avisar_a });
     },
 
     api_admin_reset_pin: ({ p_token, p_participante }) => {

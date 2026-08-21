@@ -1,10 +1,10 @@
 -- Familia Rojiblanca 26/27 — autoprueba
 --
 -- Comprueba de punta a punta el PIN, el cierre de plazo, la convocatoria, la
--- puntuacion y el panel de administracion. Crea datos de prueba y los DESHACE
--- al terminar: al
--- lanzar una excepcion a proposito, PostgreSQL revierte la transaccion entera y
--- no queda absolutamente nada.
+-- puntuacion, el horario oficial, las solicitudes para entrar y el panel de
+-- administracion. Crea datos de prueba y los DESHACE al terminar: al lanzar una
+-- excepcion a proposito, PostgreSQL revierte la transaccion entera y no queda
+-- absolutamente nada.
 --
 -- Ejecutalo en el SQL Editor de Supabase. Es NORMAL que termine en rojo:
 -- lee el mensaje. Si dice "TODO CORRECTO", todo funciona.
@@ -24,12 +24,15 @@ declare
   v_pts    int;
   v_n      int;
   v_pk     text;
+  v_sol    int;
+  v_nuevo  int;
   v_hora   timestamptz;
   v_k      timestamptz;
   v_c      timestamptz;
   v_b      boolean;
-  v_correo text := 'zz.prueba@ejemplo.com';
-  fallos   text := '';
+  v_correo  text := 'zz.prueba@ejemplo.com';
+  v_correo2 text := 'zz.nuevo@ejemplo.com';
+  fallos    text := '';
 begin
   -- ------------------------------------------------------------ preparacion
   if (select count(*) from jugadores where activo) < 13 then
@@ -467,6 +470,167 @@ begin
   select horario_aviso into v_pk from jornadas where id = v_jor2;
   if v_pk is not null then
     fallos := fallos || E'\n- el aviso del horario no se quita al guardar la jornada';
+  end if;
+
+  -- ---------------------------------------------- solicitudes para entrar
+  -- Cualquiera puede pedir entrar desde la web, pero no entra nadie hasta que
+  -- el administrador lo aprueba.
+  --
+  -- Se apartan las que hubiera de verdad, igual que con el calendario, para que
+  -- la prueba no dependa de ellas. La excepcion del final lo devuelve todo.
+  delete from solicitudes;
+
+  r := api_solicitar('ZZ Nuevo', '12', null);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'
+- acepta una solicitud con un PIN de 2 digitos';
+  end if;
+
+  r := api_solicitar('ZZ Prueba', '4321', null);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'
+- deja pedir entrar con el nombre de alguien que ya juega';
+  end if;
+
+  r := api_solicitar('ZZ Nuevo', '4321', 'esto-no-es-un-correo');
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'
+- acepta como correo cualquier cosa en la solicitud';
+  end if;
+
+  r := api_solicitar('  ZZ   Nuevo  ', '4321', v_correo2);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'
+- no deja pedir entrar: ' || (r->>'error');
+  end if;
+  if r->>'nombre' is distinct from 'ZZ Nuevo' then
+    fallos := fallos || E'
+- no limpia los espacios de sobra del nombre de la solicitud';
+  end if;
+
+  select id into v_sol from solicitudes where nombre = 'ZZ Nuevo' and estado = 'pendiente';
+  if v_sol is null then fallos := fallos || E'
+- la solicitud no se ha guardado'; end if;
+
+  r := api_solicitar('zz nuevo', '4321', null);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'
+- deja repetir una solicitud con el mismo nombre';
+  end if;
+
+  -- Ni es participante todavia, ni su correo sale de aqui en claro.
+  if exists (select 1 from participantes where nombre = 'ZZ Nuevo') then
+    fallos := fallos || E'
+- ¡pedir entrar crea el participante sin que nadie lo apruebe!';
+  end if;
+  if api_estado(v_adm)::text like '%' || v_correo2 || '%' then
+    fallos := fallos || E'
+- ¡api_estado devuelve en claro el correo de la solicitud!';
+  end if;
+  if (select encode(email_cifrado, 'escape') from solicitudes where id = v_sol)
+     like '%ejemplo.com%' then
+    fallos := fallos || E'
+- ¡el correo de la solicitud se guarda sin cifrar!';
+  end if;
+
+  -- y la lista de solicitudes es cosa del administrador
+  select json_array_length(api_estado(v_adm)->'solicitudes') into v_n;
+  if v_n is distinct from 1 then
+    fallos := fallos || E'
+- el administrador no ve la solicitud pendiente';
+  end if;
+  if (api_estado(v_tok)->'solicitudes')::text <> 'null' then
+    fallos := fallos || E'
+- las solicitudes se ven sin ser administrador';
+  end if;
+
+  -- ------------------------------------- el aviso por correo al administrador
+  r := api_admin_avisar_a(gen_random_uuid(), v_part);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'
+- cualquiera puede cambiar a quien se avisa de las solicitudes';
+  end if;
+
+  r := api_admin_avisar_a(v_adm, v_part);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'
+- no deja elegir a quien se avisa de las solicitudes';
+  end if;
+
+  select count(*) into v_n from json_array_elements(robot_solicitudes_pendientes()->'solicitudes') x
+   where (x->>'id')::int = v_sol;
+  if v_n <> 1 then
+    fallos := fallos || E'
+- el robot no ve la solicitud de la que hay que avisar';
+  end if;
+  if robot_solicitudes_pendientes()->'admin'->>'email' is distinct from v_correo then
+    fallos := fallos || E'
+- el robot no saca el correo del administrador al que avisar';
+  end if;
+
+  perform robot_solicitud_avisada(v_sol);
+  select json_array_length(robot_solicitudes_pendientes()->'solicitudes') into v_n;
+  if v_n <> 0 then
+    fallos := fallos || E'
+- se avisaria dos veces de la misma solicitud';
+  end if;
+
+  -- ------------------------------------------------- aprobar y rechazar
+  r := api_admin_solicitud(gen_random_uuid(), v_sol, true);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'
+- cualquiera puede aprobar una solicitud';
+  end if;
+
+  r := api_admin_solicitud(v_adm, v_sol, true);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'
+- no deja aprobar la solicitud: ' || (r->>'error');
+  end if;
+
+  select id into v_nuevo from participantes where nombre = 'ZZ Nuevo';
+  if v_nuevo is null then
+    fallos := fallos || E'
+- aprobar la solicitud no crea el participante';
+  else
+    -- entra con el PIN que eligio al pedirlo, sin tener que ponerlo otra vez
+    r := api_login(v_nuevo, '1111');
+    if (r->>'ok')::boolean then
+      fallos := fallos || E'
+- el nuevo entra con un PIN que no es el suyo';
+    end if;
+    r := api_login(v_nuevo, '4321');
+    if not (r->>'ok')::boolean then
+      fallos := fallos || E'
+- el nuevo no puede entrar con el PIN que eligio al pedirlo';
+    end if;
+    if not (select avisos and avisos_preguntado from participantes where id = v_nuevo) then
+      fallos := fallos || E'
+- al aprobar no se le pasan los avisos por correo que pidio';
+    end if;
+  end if;
+
+  r := api_admin_solicitud(v_adm, v_sol, true);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'
+- deja aprobar dos veces la misma solicitud';
+  end if;
+
+  r := api_solicitar('ZZ Otro', '5555', v_correo2);
+  select id into v_sol from solicitudes where nombre = 'ZZ Otro' and estado = 'pendiente';
+
+  r := api_admin_solicitud(v_adm, v_sol, false);
+  if not (r->>'ok')::boolean then
+    fallos := fallos || E'
+- no deja rechazar una solicitud: ' || (r->>'error');
+  end if;
+  if exists (select 1 from participantes where nombre = 'ZZ Otro') then
+    fallos := fallos || E'
+- ¡rechazar una solicitud crea el participante igualmente!';
+  end if;
+  if (select email_cifrado is not null or pin_hash <> '' from solicitudes where id = v_sol) then
+    fallos := fallos || E'
+- al rechazar no se le borran el PIN y el correo';
   end if;
 
   -- ----------------------------------------------------------- resultado
