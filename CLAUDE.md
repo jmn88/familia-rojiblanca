@@ -386,6 +386,20 @@ ejecución deshace ese fichero entero.
   cada función nueva y `anon` lo hereda: hay que retirárselo también a `PUBLIC`.
   Estuvo abierto en producción hasta que se comprobó desde la web publicada.
   `sql/05_robot.sql` lo verifica solo al aplicarse.
+- **El minuto a minuto va del reves y el club no lo escribe siempre igual.** En
+  la jornada 1 el once venia junto a su anuncio («¡CONFIRMADO EL ONCE DEL SEVILLA
+  FC! … sale con Odysseas; …») y en la 2 en DOS entradas separadas, con los
+  nombres en la de ARRIBA, porque el directo va de lo mas reciente a lo mas
+  antiguo:
+
+      15:46 | Odysseas, Iglesias, … Peque y Ure.
+      15:45 | Once confirmado de Luis Garcia Plaza para el conjunto sevillista.
+
+  El robot miraba el parrafo SIGUIENTE al titular, asi que se volvia de vacio.
+  Ahora parte el directo en entradas «HH:MM |», busca la que anuncia el once
+  («once» o «alineacion» junto a «confirmad», en cualquier orden) y prueba esa y
+  las dos de al lado. Lo que no cuadre lo tumba el filtro de siempre: si no salen
+  11 nombres que casen con la plantilla, no se propone nada.
 - **El club escribe el once en MAYÚSCULAS.** Buscar «once» en minúsculas solo
   encuentra cadenas de la tienda («LINEUP: Alineaciones»), y por eso se dio por
   hecho —mal— que el club no publicaba la alineación.
