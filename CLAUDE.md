@@ -273,7 +273,7 @@ vacío en segundos.
 | Proceso | Cada | Ventana (la marca SQL) | Qué hace |
 |---|---|---|---|
 | `convocatoria.yml` | 30 min | desde las 10:00 de la víspera, con el plazo abierto | Carga la convocatoria |
-| `once.yml` | 5 min | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
+| `once.yml` | 5 min, solo 10-20 UTC | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
 | `avisos.yml` | 15 min | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
 | `avisos.yml` (1er paso) | 15 min | solicitudes pendientes sin avisar | Le dice al administrador que alguien quiere entrar |
 | `horario.yml` | lunes y jueves | jornadas con el plazo abierto | Trae el horario oficial del calendario del club |
@@ -293,6 +293,15 @@ vacío en segundos.
   M. Sierra). De casarlos se encarga `robot/comun.py`.
 - El cron de GitHub **no es puntual**: se retrasa cuando hay cola. Por eso existe
   el aviso de los 45 minutos, que no depende de ellos.
+- **`once.yml` solo se lanza de 10 a 20 UTC** (decisión del usuario, agosto de
+  2026). Los demás van todo el día. Motivo: miraba cada 5 minutos las 24 horas,
+  288 ejecuciones diarias que llenaban el registro de Actions sin hacer nada. El
+  partido más temprano es a las 14:00 y el más tardío a las 21:30, así que esa
+  banda cubre de sobra los 90 minutos previos a cualquiera. Lo único que se
+  recorta es la cola de +3 h para los partidos de noche. **El cron va en UTC y no
+  sigue el cambio de hora**, así que en invierno la banda es 11:00–21:55 de
+  Madrid y en verano 12:00–22:55; las dos valen. A los otros dos procesos no se
+  les pone banda porque sus ventanas cruzan la madrugada.
 
 ## Arquitectura, y por qué importa
 

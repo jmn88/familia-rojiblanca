@@ -1,9 +1,26 @@
 # Deja PROPUESTO el once inicial del Sevilla FC.
 #
-# Mira cada cinco minutos. Quien decide si toca o no es la base de datos
-# (robot_pendiente_once): solo contesta desde hora y media antes del partido y
-# hasta que la alineacion aparece. El resto del dia esto se va de vacio en unos
-# segundos sin tocar nada.
+# Mira cada cinco minutos, pero solo en horas en las que puede haber partido.
+# Quien decide si toca o no es la base de datos (robot_pendiente_once): solo
+# contesta desde hora y media antes del partido y hasta que la alineacion
+# aparece. Fuera de eso esto se va de vacio en unos segundos sin tocar nada.
+#
+# La banda horaria es cosa aparte, y solo sirve para no llenar el registro de
+# ejecuciones inutiles de madrugada: el partido mas temprano es a las 14:00 y el
+# mas tardio a las 21:30 (hora de Madrid).
+#
+# OJO: el cron de GitHub va en UTC y NO sigue el cambio de hora espanol, asi que
+# la banda se desplaza sola una hora en invierno:
+#
+#     10-20 UTC  =  12:00-22:55 en verano  |  11:00-21:55 en invierno
+#
+# Las dos cubren de sobra lo que hace falta, que es estar mirando durante los 90
+# minutos anteriores a cualquier partido (desde las 12:30 para uno de las 14:00,
+# desde las 20:00 para uno de las 21:30). Lo que se recorta es la cola de tres
+# horas DESPUES del inicio, que solo era una red por si el club publicaba tarde:
+# para un partido de las 21:30 se deja de mirar hacia las 22:00 en vez de a las
+# 00:30. Si algun dia LaLiga pone un partido fuera de ese horario, hay que tocar
+# esta linea.
 #
 # Si a 45 minutos del partido sigue sin encontrarla, la web lo avisa en Admin
 # para que se marque a mano.
@@ -20,7 +37,7 @@ name: Proponer el once inicial
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/5 10-20 * * *'
   workflow_dispatch:
 
 concurrency:
