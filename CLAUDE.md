@@ -279,10 +279,12 @@ vacío en segundos.
 | `horario.yml` | lunes y jueves | jornadas con el plazo abierto | Trae el horario oficial del calendario del club |
 
 - Los datos salen de **la web del club**, que publica todo en texto dentro del
-  HTML servido: la convocatoria en «La lista completa la forman: …», el once en
-  la noticia «en directo» («¡CONFIRMADO EL ONCE DEL SEVILLA FC! … sale con
-  Odysseas; Iglesias, …») y el calendario entero en `/calendario/sevilla`, como
-  JSON dentro de un `<script>`. No hace falta navegador ni OCR.
+  HTML servido: la convocatoria en un párrafo de la noticia (se busca **el
+  párrafo con más jugadores de la plantilla**, no una frase concreta, porque el
+  club no la redacta dos veces igual), el once en la noticia «en directo»
+  («¡CONFIRMADO EL ONCE DEL SEVILLA FC! … sale con Odysseas; Iglesias, …») y el
+  calendario entero en `/calendario/sevilla`, como JSON dentro de un `<script>`.
+  No hace falta navegador ni OCR.
 - **Leer los tuits de @SevillaFC se descartó**: desde febrero de 2026 X cobra por
   publicación leída. No lo replantees sin que el usuario lo pida.
 - Reglas: nunca pisan lo que haya puesto una persona; no cargan con el plazo
@@ -376,17 +378,28 @@ ejecución deshace ese fichero entero.
 
 ## Trampas conocidas (errores ya cometidos, no repetirlos)
 
-- **El club no presenta la convocatoria siempre con la misma frase.** En la
-  jornada 1 escribio «La lista completa la forman:» y en la 2 «La convocatoria al
-  completo la conforman:». El robot buscaba la primera al pie de la letra, asi que
-  encontro la noticia pero se volvio de vacio diciendo «no trae la frase con la
-  lista». Ahora se busca por el VERBO (`forman`, `conforman`, `componen`,
-  `integran`) y no por la frase entera. Se puede ser ancho a proposito: si se
-  pesca la frase equivocada, los nombres no casaran con la plantilla y `MINIMO`
-  impide que se guarde nada. **El titulo de la noticia tambien cambia**
-  (`convocatoria-sevilla-fc-rayo-vallecano-laliga-2026-2027` frente a
-  `convocatoria-athletic-club-sevilla-fc-jornada-2-2627`), pero eso ya lo
+- **El club no presenta la convocatoria dos veces igual, así que no dependas de
+  la frase.** J1: «La lista completa la forman:». J2: «La convocatoria al completo
+  la conforman:». J3: «La convocatoria completa la conforman:». Cada jornada era
+  una frase nueva que añadir. Ahora `listas_posibles()` mira **todos los párrafos**
+  y `mejor_lista()` se queda con el que más jugadores de la plantilla trae: el de
+  la convocatoria es el único con veintitantos nombres seguidos, así que gana solo,
+  esté donde esté. Las frases conocidas se quedan solo como atajo. **El título de
+  la noticia también cambia** (`convocatoria-sevilla-fc-rayo-vallecano-laliga-2026-2027`
+  frente a `convocatoria-athletic-club-sevilla-fc-jornada-2-2627`), pero eso ya lo
   aguantaba `buscar_noticia`.
+- **No cortes una lista de nombres por el primer punto: hay apellidos que lo
+  llevan.** En la jornada 3 el club escribió «A. Castrín» de octavo, la lista se
+  quedó en ocho nombres —uno de ellos la «A» suelta— y el robot se plantó con
+  «solo casan 7 de 8». La lista acaba donde acaba el párrafo. El mismo fallo se
+  había arreglado ya en `robot/once.py` («M. Sierra») y se quedó sin arreglar en
+  la convocatoria: si tocas uno, mira el otro.
+- **El emparejado de nombres ya es permisivo, no lo aflojes más.** «Castrín» casa
+  con A. Castrín, «Sierra» con M. Sierra, «Ure» con Robbie Ure, «Isaac» con Isaac
+  Romero, «Juan Iglesias» con Iglesias — todos con acierto pleno (`contencion()`
+  en `robot/comun.py` tira las iniciales sueltas y compara las palabras largas).
+  Lo que no casa es lo que **no debe**: «Romero» a secas es ambiguo entre Rafa e
+  Isaac Romero y `casar()` se niega a adivinar a propósito.
 - **`psql -c` no sustituye las variables de psql.** `psql -c "select f(:'x')"` se
   manda tal cual al servidor y revienta con `syntax error at or near ":"`. Por eso
   las órdenes del robot se arman en `robot/orden_sql.py`, ya escapadas, y se pasan
