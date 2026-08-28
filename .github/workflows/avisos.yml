@@ -33,6 +33,14 @@ name: Avisos por correo
 on:
   schedule:
     - cron: '*/15 * * * *'
+  # En cuanto termina el robot de la convocatoria, se lanza esto. Asi el aviso
+  # de «ya hay convocatoria» sale a los segundos de cargarse, en vez de esperar
+  # a que GitHub tenga a bien lanzar la siguiente pasada: el 28 de agosto de
+  # 2026 la convocatoria se cargo a las 18:32 y el robot de los avisos llevaba
+  # mas de veinte horas sin ejecutarse, asi que no le llego el correo a nadie.
+  workflow_run:
+    workflows: ["Cargar la convocatoria"]
+    types: [completed]
   workflow_dispatch:
 
 # grupo propio: si compartiera el de los otros robots, el que mira el once cada
@@ -44,6 +52,8 @@ concurrency:
 jobs:
   avisar:
     runs-on: ubuntu-latest
+    # se queda esperando al aviso de las 3 horas; el tope de dentro son 5
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
 
@@ -107,16 +117,28 @@ jobs:
             exit 1
           fi
 
-          # A quien hay que avisar. Este fichero lleva correos: no se imprime.
-          psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_avisos_pendientes();" > pendientes.json
-
-          python3 robot/avisos.py < pendientes.json > resultado.json
-          cat resultado.json          # este si: solo lleva nombres
-
           leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
 
+          # Se da una pasada y, si el cierre esta cerca, la ejecucion se queda
+          # despierta repitiendola cada cinco minutos hasta que llegue. Es la
+          # unica forma de que el aviso de «te falta el once» salga a las tres
+          # horas justas: el reloj de GitHub no da para tanto (pasadas con
+          # veinte horas de hueco, comprobado).
+          TOPE=$(( $(date +%s) + 5 * 3600 ))
+          PRIMERA=si
+
+          while true; do
+            # A quien hay que avisar. Este fichero lleva correos: no se imprime.
+            psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_avisos_pendientes();" > pendientes.json
+
+            python3 robot/avisos.py < pendientes.json > resultado.json
+            cat resultado.json          # este si: solo lleva nombres
+
           if [ "$(leer n_enviados)" = "0" ] || [ -z "$(leer n_enviados)" ]; then
-            echo "Sin avisar a nadie: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+            # solo la primera vez, para no llenar el resumen de lineas iguales
+            if [ "$PRIMERA" = si ]; then
+              echo "Sin avisar a nadie: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
             # La orden se arma en Python, ya escapada: psql no sustituye variables
             # en las ordenes que se le pasan con -c.
@@ -132,8 +154,21 @@ jobs:
           fi
 
           # Si algun correo no ha salido, que se vea en rojo: se reintenta solo
-          # dentro de un cuarto de hora, pero conviene enterarse.
+          # en la siguiente vuelta, pero conviene enterarse.
           if [ "$(leer n_fallos)" != "0" ] && [ -n "$(leer n_fallos)" ]; then
             python3 -c "import json; [print('::error::No ha salido el aviso de %s — %s' % (f['nombre'], f['motivo'])) for f in json.load(open('resultado.json'))['fallos']]"
             exit 1
           fi
+
+            PRIMERA=no
+
+            # ¿merece la pena quedarse, o ya volvera GitHub cuando toque?
+            if ! python3 robot/avisos.py --seguir < pendientes.json; then
+              break
+            fi
+            if [ "$(date +%s)" -ge "$TOPE" ]; then
+              echo "Se acaba el tiempo de esta ejecucion; lo coge la siguiente."
+              break
+            fi
+            sleep 300
+          done
