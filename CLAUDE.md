@@ -273,7 +273,7 @@ vacío en segundos.
 | Proceso | Cada | Ventana (la marca SQL) | Qué hace |
 |---|---|---|---|
 | `convocatoria.yml` | 30 min | desde las 10:00 de la víspera, con el plazo abierto | Carga la convocatoria |
-| `once.yml` | 5 min, solo 10-20 UTC | desde 90 min antes hasta que aparece (tope: +3 h) | Deja el once **propuesto** |
+| `once.yml` | 15 min, solo 8-20 UTC | desde 3 h antes hasta que aparece (tope: +3 h) | Deja el once **propuesto**; **espera dentro de la ejecución** |
 | `avisos.yml` | 15 min | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
 | `avisos.yml` (1er paso) | 15 min | solicitudes pendientes sin avisar | Le dice al administrador que alguien quiere entrar |
 | `horario.yml` | lunes y jueves | jornadas con el plazo abierto | Trae el horario oficial del calendario del club |
@@ -293,17 +293,36 @@ vacío en segundos.
 - Los nombres del club no coinciden literalmente con la plantilla («Juan
   Iglesias» → Iglesias, «Andrés Castrín» → A. Castrín, «Miguel Sierra» →
   M. Sierra). De casarlos se encarga `robot/comun.py`.
-- El cron de GitHub **no es puntual**: se retrasa cuando hay cola. Por eso existe
-  el aviso de los 45 minutos, que no depende de ellos.
-- **`once.yml` solo se lanza de 10 a 20 UTC** (decisión del usuario, agosto de
-  2026). Los demás van todo el día. Motivo: miraba cada 5 minutos las 24 horas,
-  288 ejecuciones diarias que llenaban el registro de Actions sin hacer nada. El
-  partido más temprano es a las 14:00 y el más tardío a las 21:30, así que esa
-  banda cubre de sobra los 90 minutos previos a cualquiera. Lo único que se
-  recorta es la cola de +3 h para los partidos de noche. **El cron va en UTC y no
-  sigue el cambio de hora**, así que en invierno la banda es 11:00–21:55 de
-  Madrid y en verano 12:00–22:55; las dos valen. A los otros dos procesos no se
-  les pone banda porque sus ventanas cruzan la madrugada.
+- **El cron de GitHub no cumple lo que se le pide, y por mucho.** Medido en este
+  repositorio en agosto de 2026: pidiendo cada 5 minutos ejecutaba con huecos
+  reales de 51 a 173 minutos, y pidiendo cada 15 minutos, huecos de 53 a 217 (uno
+  de 34 horas). **Los dos acaban yendo a una vez por hora o menos, pidan lo que
+  pidan**: el intervalo del cron ya no manda nada. Las tareas programadas son
+  «cuando se pueda», y además los repositorios públicos recién creados entran en
+  una cola de baja prioridad hasta que la cuenta coge historial.
+  Consecuencia: **no pongas la lógica de tiempo en el cron.** El del once es solo
+  un despertador; quien espera es la propia ejecución (ver abajo). Y por eso
+  existe el aviso de los 45 minutos, que no depende de GitHub.
+- **El robot del once espera dentro de la ejecución** (`robot/once.py --vigilar`,
+  decisión del usuario, agosto de 2026). Si hay partido a la vista se queda
+  despierto mirando cada dos minutos hasta que la alineación aparece, en vez de
+  fiarse de que GitHub lo arranque a tiempo: basta con que lo arranque **una vez**
+  en toda la tarde. No pide nada al club hasta 100 min antes del partido, se rinde
+  3 h después del inicio y una ejecución no dura más de 5 h (el tope de GitHub son
+  6). Por eso la ventana de `robot_pendiente_once()` abre 3 h antes: cuanto más
+  ancha, más fácil es que GitHub arranque alguna vez dentro. Los minutos de
+  máquina son gratis e ilimitados en repositorios públicos.
+  **`once.yml` tiene grupo de concurrencia propio** (`robot-once`): compartía el
+  de la convocatoria y el horario, y ahora que puede quedarse horas despierto los
+  dejaría esperando detrás.
+- **`once.yml` solo se lanza de 8 a 20 UTC** (decisión del usuario, agosto de
+  2026). Los demás van todo el día. Motivo: miraba las 24 horas y llenaba el
+  registro de Actions de ejecuciones que no hacían nada. El partido más temprano
+  es a las 14:00 y el más tardío a las 21:30, así que la banda cubre de sobra las
+  3 h previas a cualquiera (la ventana del de las 14:00 abre a las 11:00 de
+  Madrid). **El cron va en UTC y no sigue el cambio de hora**, así que la banda es
+  9:00–21:55 de Madrid en invierno y 10:00–22:55 en verano; las dos valen. A los
+  otros procesos no se les pone banda porque sus ventanas cruzan la madrugada.
 
 ## Arquitectura, y por qué importa
 
