@@ -274,7 +274,7 @@ vacío en segundos.
 |---|---|---|---|
 | `convocatoria.yml` | 30 min | desde las 10:00 de la víspera, con el plazo abierto | Carga la convocatoria |
 | `once.yml` | 15 min, solo 8-20 UTC | desde 3 h antes hasta que aparece (tope: +3 h) | Deja el once **propuesto**; **espera dentro de la ejecución** |
-| `avisos.yml` | 15 min | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
+| `avisos.yml` | 15 min, **y al acabar la convocatoria**; espera dentro | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
 | `avisos.yml` (1er paso) | 15 min | solicitudes pendientes sin avisar | Le dice al administrador que alguien quiere entrar |
 | `horario.yml` | lunes y jueves | jornadas con el plazo abierto | Trae el horario oficial del calendario del club |
 
@@ -303,6 +303,14 @@ vacío en segundos.
   Consecuencia: **no pongas la lógica de tiempo en el cron.** El del once es solo
   un despertador; quien espera es la propia ejecución (ver abajo). Y por eso
   existe el aviso de los 45 minutos, que no depende de GitHub.
+- **El aviso de la convocatoria no lo dispara el cron, sino la propia carga**
+  (idea del usuario, agosto de 2026): `avisos.yml` se lanza con `workflow_run` al
+  terminar «Cargar la convocatoria», así que el correo sale a los segundos. Hizo
+  falta porque el 28 de agosto la convocatoria se cargó a las 18:32 y el robot de
+  los avisos llevaba **más de veinte horas** sin ejecutarse, así que no le llegó
+  a nadie. El de «te falta el once» no se puede disparar por ningún suceso, así
+  que ahí la ejecución **espera**: si quedan menos de 5 h para el cierre, repite
+  la pasada cada 5 minutos hasta que llegue (`robot/avisos.py --seguir` decide).
 - **El robot del once espera dentro de la ejecución** (`robot/once.py --vigilar`,
   decisión del usuario, agosto de 2026). Si hay partido a la vista se queda
   despierto mirando cada dos minutos hasta que la alineación aparece, en vez de
