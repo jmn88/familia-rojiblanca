@@ -6,6 +6,11 @@ El club publica la lista de convocados como una noticia, y dentro va en texto:
 
     La lista completa la forman: Odysseas, Fran Gonzalez, Juan Iglesias, ...
     La convocatoria al completo la conforman: Odysseas, Fran Gonzalez, ...
+    La convocatoria completa la conforman: Odysseas, Fran Gonzalez, ...
+
+Como no la redacta igual dos veces, no se depende de la frase: se miran todos
+los parrafos y gana el que mas jugadores de la plantilla trae. La frase solo
+sirve de atajo.
 
 Asi que no hace falta ni leer la foto ni tocar la API de X (que desde 2026 se
 paga por uso). Se pide la pagina tal cual, se saca esa frase y se cruzan los
@@ -44,22 +49,51 @@ FRASES = (
 )
 
 
-def lista_de(html):
-    """Los nombres que van detras de la frase que presenta la convocatoria."""
+# Una convocatoria nunca baja de once nombres. Sirve para descartar de un
+# vistazo los parrafos que son prosa, antes de ponerse a casar nombres.
+SUELO = 11
+
+
+def listas_posibles(html):
+    """Todo lo que en la noticia podria ser la lista de convocados.
+
+    Primero lo que va detras de la frase que la presenta, que es lo mas fiable.
+    Y despues CUALQUIER parrafo, por si el club la ha redactado de otra manera o
+    la ha puesto en otro sitio: ya decidira mas tarde quien gana, que sera el
+    que mas jugadores de la plantilla traiga."""
     texto = comun.desescapar(html)
+
+    trozos = []
     for frase in FRASES:
-        trozo = re.search(frase + r"(.{0,1500}?)</p", texto, re.IGNORECASE | re.DOTALL)
-        if not trozo:
-            continue
+        for hallado in re.finditer(frase + r"(.{0,1500}?)</p", texto, re.IGNORECASE | re.DOTALL):
+            trozos.append(hallado.group(1))
+    trozos += re.findall(r"<p[^>]*>(.{0,2000}?)</p>", texto, re.DOTALL)
+
+    listas = []
+    for trozo in trozos:
         # No se corta por el primer punto: hay apellidos que lo llevan. En la
         # jornada 3 el club escribio «A. Castrin» de octavo y la lista se quedaba
-        # en ocho nombres, uno de ellos la «A» suelta. La lista acaba donde acaba
-        # el parrafo, y si detras viniera mas texto esas palabras de mas no
-        # casarian con nadie de la plantilla, que es inofensivo.
-        nombres = comun.trocear_nombres(comun.sin_etiquetas(trozo.group(1)))
-        if nombres:
-            return nombres
-    return []
+        # en ocho nombres, uno de ellos la «A» suelta.
+        nombres = comun.trocear_nombres(comun.sin_etiquetas(trozo))
+        if len(nombres) >= SUELO:
+            listas.append(nombres)
+    return listas
+
+
+def mejor_lista(html, plantilla):
+    """De todo lo que podria ser la convocatoria, la que mas jugadores de la
+    plantilla trae de verdad.
+
+    Asi da igual como redacte el club la noticia: el parrafo de la convocatoria
+    es el unico con veintitantos nombres de la plantilla seguidos, y gana solo.
+    Si la lista de verdad no esta, lo que gane traera cuatro nombres sueltos y
+    MINIMO impedira que se guarde nada."""
+    mejor_nombres, mejor_casados, mejor_sueltos = [], [], []
+    for nombres in listas_posibles(html):
+        casados, sueltos = comun.casar(nombres, plantilla)
+        if len(casados) > len(mejor_casados):
+            mejor_nombres, mejor_casados, mejor_sueltos = nombres, casados, sueltos
+    return mejor_nombres, mejor_casados, mejor_sueltos
 
 
 def main():
@@ -79,12 +113,11 @@ def main():
                       "motivo": "todavia no esta publicada la convocatoria contra %s" % jornada["rival"]})
 
     url = "%s/actualidad/noticias/%s" % (comun.BASE, slug)
-    nombres = lista_de(comun.pedir(url))
+    nombres, casados, sueltos = mejor_lista(comun.pedir(url), plantilla)
     if not nombres:
         return salir({"ok": False, "jornada": jornada["numero"], "fuente": url,
-                      "motivo": "la noticia no trae la frase con la lista de convocados"})
+                      "motivo": "en la noticia no hay ningun parrafo con pinta de convocatoria"})
 
-    casados, sueltos = comun.casar(nombres, plantilla)
     if len(casados) < MINIMO:
         return salir({"ok": False, "jornada": jornada["numero"], "fuente": url,
                       "leidos": len(nombres), "sueltos": sueltos,
