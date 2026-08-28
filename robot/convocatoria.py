@@ -48,11 +48,15 @@ def lista_de(html):
     """Los nombres que van detras de la frase que presenta la convocatoria."""
     texto = comun.desescapar(html)
     for frase in FRASES:
-        trozo = re.search(frase + r"(.{0,900}?)</p", texto, re.IGNORECASE | re.DOTALL)
+        trozo = re.search(frase + r"(.{0,1500}?)</p", texto, re.IGNORECASE | re.DOTALL)
         if not trozo:
             continue
-        limpio = comun.sin_etiquetas(trozo.group(1)).split(".")[0]
-        nombres = comun.trocear_nombres(limpio)
+        # No se corta por el primer punto: hay apellidos que lo llevan. En la
+        # jornada 3 el club escribio «A. Castrin» de octavo y la lista se quedaba
+        # en ocho nombres, uno de ellos la «A» suelta. La lista acaba donde acaba
+        # el parrafo, y si detras viniera mas texto esas palabras de mas no
+        # casarian con nadie de la plantilla, que es inofensivo.
+        nombres = comun.trocear_nombres(comun.sin_etiquetas(trozo.group(1)))
         if nombres:
             return nombres
     return []
