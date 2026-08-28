@@ -539,8 +539,11 @@ de agosto de 2026 (PR #6, commit `f860fd6`), con la autoprueba pasada contra la
 base de datos real. Reutiliza entero lo del #3: misma tabla, mismo proceso, mismo
 correo cifrado; lo nuevo es la columna `tipo` de `recordatorios` (con su
 migración de la clave primaria) y la segunda mitad de
-`robot_avisos_pendientes()`. **Lo único sin estrenar es un envío de verdad de esa
-clase**, que saldrá solo con la primera convocatoria que se cargue.
+`robot_avisos_pendientes()`. **Estrenado de verdad el 28 de agosto de 2026**: la
+convocatoria de la jornada 3 se cargó sola desde la web del club y el aviso salió
+a los seis participantes con avisos encendidos (Carmen, Chiquitín, Javi, Jesús,
+Tio P y Tito). Llegó bien. Lo disparó el `workflow_run` nuevo, no el cron, así
+que ese camino también queda comprobado en producción.
 
 La ventana de la convocatoria (10:00 de la víspera, PR #8) también está
 aplicada y con la autoprueba pasada.
@@ -585,8 +588,12 @@ veintisiete comprobaciones nuevas) y ver el primer correo de verdad.
 6. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
-7. **Ver el primer aviso de convocatoria de verdad**: saldrá solo en cuanto se
-   cargue una convocatoria con alguien que tenga los avisos encendidos.
+7. **Las dos esperas nuevas están sin estrenar** (28 de agosto de 2026): que el
+   robot del once se quede despierto hasta cazar la alineación, y que el de los
+   avisos se quede repitiendo la pasada cuando faltan menos de 5 h para el cierre
+   (el correo de «te falta el once»). Las dos se probaron con el reloj acelerado,
+   pero aún no las ha ejecutado GitHub de verdad. La primera ocasión es la
+   jornada 3.
    Para probar un aviso sin esperar al partido: adelantar el `kickoff` de la
    próxima jornada desde Admin (a unas 2 horas vista: menos de 3 para que entre
    en la ventana, pero más de 1h30 para no despertar al robot del once), lanzar
