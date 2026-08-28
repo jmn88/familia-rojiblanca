@@ -28,10 +28,26 @@ eso responde una persona.
 import json
 import re
 import sys
+import time
 
 import comun
 
 TITULARES = 11
+
+# Cuando se le pasa --vigilar, esta ejecucion NO se va nada mas mirar: se queda
+# despierta hasta que la alineacion aparece.
+#
+# Es para no depender del reloj de GitHub, que no cumple lo que se le pide. Se
+# le pedian pasadas cada cinco minutos y en la practica lanzaba una cada hora o
+# dos (medido: huecos de 51 a 173 minutos), asi que habia jornadas en las que no
+# se ejecutaba ni una sola vez durante los 90 minutos que dura la ventana y el
+# once no se proponia. Ahora el cron es solo un despertador: basta con que
+# GitHub arranque UNA vez en toda la tarde para que el once se cace con
+# precision de dos minutos.
+ESPERA = 120            # entre intento e intento
+DESDE  = 100 * 60       # no se molesta al club hasta 100 min antes del partido
+HASTA  = 3 * 3600       # si a las 3 horas del inicio no ha salido, no va a salir
+TOPE   = 5 * 3600       # y una ejecucion no se queda despierta mas que esto
 
 # El minuto a minuto son entradas «HH:MM | texto», y van de la mas reciente a la
 # mas antigua, asi que lo de arriba es POSTERIOR a lo de abajo.
@@ -84,38 +100,88 @@ def once_de(html):
     return []
 
 
+def intentar(jornada, plantilla):
+    """Una pasada: buscar la noticia, leerla y casar los nombres."""
+    slug = comun.buscar_noticia("partido-directo", jornada["rival"])
+    if not slug:
+        return {"ok": False, "jornada": jornada["numero"],
+                "motivo": "no encuentro la noticia en directo del partido contra %s"
+                          % jornada["rival"]}
+
+    url = "%s/actualidad/noticias/%s" % (comun.BASE, slug)
+    nombres = once_de(comun.pedir(url))
+    if not nombres:
+        return {"ok": False, "jornada": jornada["numero"], "fuente": url,
+                "motivo": "el once todavia no esta publicado en la noticia"}
+
+    casados, sueltos = comun.casar(nombres, plantilla)
+    if len(casados) != TITULARES:
+        return {"ok": False, "jornada": jornada["numero"], "fuente": url,
+                "leidos": nombres, "sueltos": sueltos,
+                "motivo": "de los %d nombres del once solo casan %d con la plantilla"
+                          % (len(nombres), len(casados))}
+
+    return {"ok": True, "jornada_id": jornada["id"], "jornada": jornada["numero"],
+            "fuente": url, "ids": [c["id"] for c in casados], "casados": casados}
+
+
+def segundos_hasta(desde_iso, hasta_iso):
+    """Cuanto falta entre dos instantes, en segundos.
+
+    Los dos vienen de la base de datos, con su huso puesto, asi que aqui solo se
+    restan: no hace falta saber de zonas horarias (que en Windows ni se pueden
+    consultar) ni fiarse del reloj de la maquina."""
+    from datetime import datetime
+    return (datetime.fromisoformat(hasta_iso) - datetime.fromisoformat(desde_iso)).total_seconds()
+
+
+def aviso(texto):
+    """Al registro de GitHub, no a la salida: la salida es solo el JSON."""
+    print(texto, file=sys.stderr, flush=True)
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     datos = json.load(sys.stdin)
     jornada = datos.get("jornada")
     plantilla = datos.get("plantilla") or []
+    vigilar = "--vigilar" in sys.argv
 
     if not jornada:
         return salir({"ok": False, "motivo": "no hay ningun partido esperando el once"})
     if not plantilla:
         return salir({"ok": False, "motivo": "no hay plantilla con la que comparar"})
 
-    slug = comun.buscar_noticia("partido-directo", jornada["rival"])
-    if not slug:
-        return salir({"ok": False, "jornada": jornada["numero"],
-                      "motivo": "no encuentro la noticia en directo del partido contra %s"
-                                % jornada["rival"]})
+    try:
+        faltan = segundos_hasta(datos["ahora"], jornada["kickoff"])
+    except Exception:
+        faltan = 0          # sin saber cuanto falta, se intenta y punto
 
-    url = "%s/actualidad/noticias/%s" % (comun.BASE, slug)
-    nombres = once_de(comun.pedir(url))
-    if not nombres:
-        return salir({"ok": False, "jornada": jornada["numero"], "fuente": url,
-                      "motivo": "el once todavia no esta publicado en la noticia"})
+    arranque = time.monotonic()
+    while True:
+        transcurrido = time.monotonic() - arranque
+        para_el_partido = faltan - transcurrido
 
-    casados, sueltos = comun.casar(nombres, plantilla)
-    if len(casados) != TITULARES:
-        return salir({"ok": False, "jornada": jornada["numero"], "fuente": url,
-                      "leidos": nombres, "sueltos": sueltos,
-                      "motivo": "de los %d nombres del once solo casan %d con la plantilla"
-                                % (len(nombres), len(casados))})
+        if para_el_partido <= DESDE:
+            resultado = intentar(jornada, plantilla)
+            if resultado["ok"]:
+                return salir(resultado)
+        else:
+            resultado = {"ok": False, "jornada": jornada["numero"],
+                         "motivo": "todavia es pronto: faltan %d minutos para el partido"
+                                   % (para_el_partido / 60)}
 
-    salir({"ok": True, "jornada_id": jornada["id"], "jornada": jornada["numero"],
-           "fuente": url, "ids": [c["id"] for c in casados], "casados": casados})
+        if not vigilar:
+            return salir(resultado)
+        if transcurrido >= TOPE:
+            aviso("Se acaba el tiempo de esta ejecucion; lo coge la siguiente.")
+            return salir(resultado)
+        if para_el_partido <= -HASTA:
+            aviso("Han pasado tres horas del inicio: si no ha salido, ya no sale.")
+            return salir(resultado)
+
+        aviso("%s. Vuelvo a mirar en %d minutos." % (resultado["motivo"], ESPERA / 60))
+        time.sleep(ESPERA)
 
 
 def salir(resultado):
