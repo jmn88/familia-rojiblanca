@@ -190,9 +190,46 @@ def mandar(clave, remitente, destino, nombre, asunto, texto):
 
 # ------------------------------------------------------------------ main ---
 
+# Mientras falte esto o menos para el cierre, la ejecucion se queda despierta
+# en vez de irse y confiar en que GitHub la vuelva a lanzar a tiempo (ver
+# --seguir). Cinco horas caben de sobra en el tope de seis de una ejecucion.
+CERCA = 5 * 3600
+
+
+def seguir_esperando(datos):
+    """¿Merece la pena quedarse despierto, o se va y ya volvera?
+
+    Se queda si hay un partido cuyo plazo aun no ha cerrado y queda poco para
+    ello: es la unica manera de que el aviso de «te falta el once» salga a su
+    hora, porque el reloj de GitHub no da para tanto (hay pasadas con veinte
+    horas de hueco, comprobado). Fuera de esa franja no tiene sentido gastar
+    una ejecucion esperando."""
+    from datetime import datetime
+    jornada = datos.get("jornada")
+    if not jornada:
+        return False, "no hay ningun partido a la vista"
+    try:
+        falta = (datetime.fromisoformat(jornada["cierre"])
+                 - datetime.fromisoformat(datos["ahora"])).total_seconds()
+    except Exception:
+        return False, "no se entiende la hora del cierre"
+    if falta <= 0:
+        return False, "el plazo ya esta cerrado"
+    if falta > CERCA:
+        return False, "aun falta mucho para el cierre (%d horas)" % (falta / 3600)
+    return True, "quedan %d minutos para el cierre" % (falta / 60)
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     datos = json.load(sys.stdin)
+
+    # Modo consulta: solo dice si conviene esperar, sin mandar nada.
+    if "--seguir" in sys.argv:
+        seguir, motivo = seguir_esperando(datos)
+        print(motivo)
+        raise SystemExit(0 if seguir else 1)
+
     jornada = datos.get("jornada")
     pendientes = datos.get("avisos") or []
 
