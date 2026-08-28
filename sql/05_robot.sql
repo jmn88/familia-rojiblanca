@@ -94,9 +94,12 @@ set search_path = public, extensions, pg_temp as $$
         from jornadas
        where once_oficial is null                       -- aun sin puntuar
          and once_propuesto is null                     -- y sin propuesta esperando
-         -- se vigila desde hora y media antes hasta que aparezca; si a las tres
-         -- horas del inicio no ha salido, no va a salir y se marca a mano
-         and now() > kickoff - interval '90 minutes'
+         -- Se contesta que si desde TRES horas antes, aunque el once no salga
+         -- hasta hora y media antes. No es que se busque tan pronto: es que el
+         -- robot se queda esperando dentro de la misma ejecucion, y cuanto mas
+         -- ancha sea esta ventana mas facil es que a GitHub le de por arrancarlo
+         -- alguna vez dentro de ella (que es lo unico que hace falta).
+         and now() > kickoff - interval '3 hours'
          and now() < kickoff + interval '3 hours'
        order by numero
        limit 1),

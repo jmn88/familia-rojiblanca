@@ -1,26 +1,32 @@
 # Deja PROPUESTO el once inicial del Sevilla FC.
 #
-# Mira cada cinco minutos, pero solo en horas en las que puede haber partido.
-# Quien decide si toca o no es la base de datos (robot_pendiente_once): solo
-# contesta desde hora y media antes del partido y hasta que la alineacion
-# aparece. Fuera de eso esto se va de vacio en unos segundos sin tocar nada.
+# EL CRON AQUI ES SOLO UN DESPERTADOR, no el reloj.
 #
-# La banda horaria es cosa aparte, y solo sirve para no llenar el registro de
-# ejecuciones inutiles de madrugada: el partido mas temprano es a las 14:00 y el
-# mas tardio a las 21:30 (hora de Madrid).
+# GitHub no cumple lo que se le pide en las tareas programadas: se le pedian
+# pasadas cada cinco minutos y lanzaba una cada hora o dos (medido en agosto de
+# 2026: huecos reales de 51 a 173 minutos, y uno de 34 horas en el robot de los
+# avisos). Con una ventana de 90 minutos, habia jornadas en las que no se
+# ejecutaba ni una sola vez a tiempo y el once no se proponia.
 #
-# OJO: el cron de GitHub va en UTC y NO sigue el cambio de hora espanol, asi que
-# la banda se desplaza sola una hora en invierno:
+# Asi que ahora la ejecucion NO se va nada mas mirar: si la base de datos dice
+# que hay partido a la vista, robot/once.py se queda despierto mirando cada dos
+# minutos hasta que la alineacion aparece (--vigilar). Basta con que GitHub
+# arranque esto UNA vez en toda la tarde para cazar el once con precision de dos
+# minutos. Los minutos de maquina son gratis e ilimitados en repositorios
+# publicos, asi que esperar no cuesta nada.
 #
-#     10-20 UTC  =  12:00-22:55 en verano  |  11:00-21:55 en invierno
+# Por eso la ventana de robot_pendiente_once() empieza tres horas antes del
+# partido: cuanto mas ancha, mas facil es que a GitHub le de por arrancarlo
+# alguna vez dentro de ella.
 #
-# Las dos cubren de sobra lo que hace falta, que es estar mirando durante los 90
-# minutos anteriores a cualquier partido (desde las 12:30 para uno de las 14:00,
-# desde las 20:00 para uno de las 21:30). Lo que se recorta es la cola de tres
-# horas DESPUES del inicio, que solo era una red por si el club publicaba tarde:
-# para un partido de las 21:30 se deja de mirar hacia las 22:00 en vez de a las
-# 00:30. Si algun dia LaLiga pone un partido fuera de ese horario, hay que tocar
-# esta linea.
+# La banda horaria solo sirve para no llenar el registro de ejecuciones inutiles
+# de madrugada. El cron de GitHub va en UTC y NO sigue el cambio de hora
+# espanol, asi que se desplaza sola una hora en invierno:
+#
+#     8-20 UTC  =  10:00-22:55 en verano  |  9:00-21:55 en invierno
+#
+# Cubre de sobra lo que hace falta: la ventana del partido mas temprano (14:00
+# en Madrid) abre a las 11:00, y la del mas tardio (21:30) a las 18:30.
 #
 # Si a 45 minutos del partido sigue sin encontrarla, la web lo avisa en Admin
 # para que se marque a mano.
@@ -37,16 +43,21 @@ name: Proponer el once inicial
 
 on:
   schedule:
-    - cron: '*/5 10-20 * * *'
+    - cron: '*/15 8-20 * * *'
   workflow_dispatch:
 
+# Grupo PROPIO, no el de los otros robots: como esta ejecucion puede quedarse
+# horas despierta, si compartiera grupo dejaria a la convocatoria y al horario
+# esperando detras (y GitHub cancela lo que se queda en cola).
 concurrency:
-  group: robot-sevilla
+  group: robot-once
   cancel-in-progress: false
 
 jobs:
   proponer:
     runs-on: ubuntu-latest
+    # se queda esperando al once; el tope de dentro son 5 horas
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@v4
 
@@ -68,7 +79,8 @@ jobs:
 
           psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "select robot_pendiente_once();" > pendiente.json
 
-          python3 robot/once.py < pendiente.json > resultado.json
+          # --vigilar: no se va nada mas mirar, se queda esperando al once.
+          python3 robot/once.py --vigilar < pendiente.json > resultado.json
           cat resultado.json
 
           leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
