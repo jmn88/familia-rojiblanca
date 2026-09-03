@@ -121,7 +121,7 @@ const API = (function () {
           id: p.id, nombre: p.nombre, tiene_pin: Boolean(p.pin),
           avisos: s?.es_admin ? Boolean(p.avisos) : null,
           email_pista: s?.es_admin ? (p.email_pista || null) : null })),
-        jugadores: db.jugadores.filter(g => g.activo || s?.es_admin),
+        jugadores: db.jugadores,   // también los de baja: salen en jornadas ya jugadas
         jornadas: db.jornadas.map(j => ({
           id: j.id, numero: j.numero, rival: j.rival, en_casa: j.en_casa, kickoff: j.kickoff,
           hora_confirmada: j.hora_confirmada !== false,

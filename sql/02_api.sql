@@ -76,9 +76,15 @@ set search_path = public, extensions, pg_temp as $$
       select coalesce(json_agg(json_build_object(
                'id', id, 'dorsal', dorsal, 'nombre', nombre, 'posicion', posicion, 'activo', activo)
              order by array_position(array['POR','DEF','MED','DEL'], posicion), dorsal), '[]'::json)
-      from jugadores
-      -- el admin ve tambien los desactivados, para poder recuperarlos
-      where activo or f_es_admin(p_token)),
+      -- Van TODOS, tambien los dados de baja, y con su marca 'activo' para que
+      -- el selector los esconda. No es un descuido: el que se vende sigue
+      -- estando en el once oficial y en las alineaciones de las jornadas ya
+      -- jugadas, y si la web no sabe quien es el 23, escribe «#23» en vez de
+      -- «Oso» y se lo salta al dibujar el campo. Los puntos no se tocan (se
+      -- calculan comparando identificadores), pero el historial se lee mal.
+      -- Que no se pueda alinear a un jugador de baja lo garantiza api_guardar,
+      -- en SQL, que es donde tiene que estar.
+      from jugadores),
     'jornadas', (
       select coalesce(json_agg(json_build_object(
                'id', id, 'numero', numero, 'rival', rival, 'en_casa', en_casa,

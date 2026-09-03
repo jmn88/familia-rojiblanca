@@ -633,6 +633,36 @@ begin
 - al rechazar no se le borran el PIN y el correo';
   end if;
 
+  -- --------------------------------------- una baja no borra lo ya jugado
+  -- Al vender a un jugador se le quita el "activo", nunca se le borra: sigue
+  -- estando en el once oficial y en las alineaciones de las jornadas jugadas.
+  -- Esto va al final a proposito: deja la jornada de prueba reabierta.
+  update jugadores set activo = false where id = v_picks[1];
+
+  r := api_jornada(v_jor, null);
+  select (x->>'puntos')::int into v_pts from json_array_elements(r->'filas') x
+   where (x->>'participante_id')::int = v_part;
+  if v_pts is distinct from 25 then
+    fallos := fallos || E'\n- dar de baja a un jugador cambia los puntos ya calculados ('
+                     || coalesce(v_pts::text, 'nulo') || ' en vez de 25)';
+  end if;
+
+  -- y la web tiene que seguir sabiendo como se llama: si no, en las jornadas
+  -- ya jugadas escribe «#23» en vez de «Oso» y se lo salta al pintar el campo
+  r := api_estado(v_tok);
+  if not exists (select 1 from json_array_elements(r->'jugadores') x
+                  where (x->>'id')::int = v_picks[1]) then
+    fallos := fallos || E'\n- un jugador dado de baja desaparece de api_estado: las jornadas ya jugadas se quedarian sin su nombre';
+  end if;
+
+  -- pero alinearlo a partir de ahora no se puede
+  r := api_admin_once(v_adm, v_jor, null);
+  r := api_admin_convocatoria(v_adm, v_jor, null);
+  r := api_guardar(v_tok, v_jor, v_picks);
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'\n- deja alinear a un jugador dado de baja';
+  end if;
+
   -- ----------------------------------------------------------- resultado
   if fallos = '' then
     raise exception E'AUTOPRUEBA: TODO CORRECTO. Nada de lo creado en la prueba se ha guardado.';

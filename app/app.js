@@ -126,18 +126,22 @@ function campoHTML(ids, fuera = []) {
    se pueden elegir. Si alguien ya los tenía puestos de antes, sí puede
    quitarlos — lo contrario sería dejarle atrapado con un once inválido. */
 function selectorHTML(seleccion, { bloqueado = false, admin = false, convocatoria = null } = {}) {
-  const lista = jugadores(admin).filter(j => j.activo !== false);
+  // Al que ha dejado el club no se le ofrece, pero si alguien ya lo tenía
+  // puesto sí sale: si no, se queda con once elegidos y sin poder quitar al
+  // que sobra. En cuanto lo quita, desaparece de la lista.
+  const lista = jugadores(admin).filter(j => j.activo !== false || seleccion.includes(j.id));
   const lleno = seleccion.length >= 11;
   return POSICIONES.map(([cod, titulo]) => {
     const grupo = lista.filter(j => j.posicion === cod);
     if (!grupo.length) return "";
     return `<h3>${titulo}</h3><div class="jugadores">` + grupo.map(j => {
       const puesto = seleccion.includes(j.id);
-      const fuera = Boolean(convocatoria) && !convocatoria.includes(j.id);
+      const baja = j.activo === false;
+      const fuera = baja || (Boolean(convocatoria) && !convocatoria.includes(j.id));
       const off = bloqueado || (!puesto && (lleno || fuera));
       return `<button type="button" class="jug${fuera ? " fuera" : ""}" data-elegir="${j.id}"
                 aria-pressed="${puesto}" ${off ? "disabled" : ""}
-                ${fuera ? 'title="No está en la convocatoria"' : ""}>
+                ${baja ? 'title="Ya no está en la plantilla"' : fuera ? 'title="No está en la convocatoria"' : ""}>
                 <span class="n">${j.dorsal ?? "·"}</span>${esc(j.nombre)}</button>`;
     }).join("") + `</div>`;
   }).join("");
@@ -222,8 +226,14 @@ async function pintarAlineacion() {
 
   // La convocatoria puede llegar después de que alguien haya enviado su once.
   // A nadie se le borra nada: se le avisa de a quién tiene que cambiar.
-  const conv = j.convocatoria && j.convocatoria.length ? j.convocatoria : null;
-  const sobran = conv ? S.picks.filter(id => !conv.includes(id)) : [];
+  // Y lo mismo con un traspaso: al que se vende se le quita de la plantilla, y
+  // puede haber quien ya lo tuviera puesto. Sin esto se quedaría atrapado, con
+  // once elegidos y sin poder quitar al que sobra, porque el selector ya no lo
+  // enseña.
+  const conv   = j.convocatoria && j.convocatoria.length ? j.convocatoria : null;
+  const bajas  = S.picks.filter(id => jug(id)?.activo === false);
+  const noConv = conv ? S.picks.filter(id => !conv.includes(id) && !bajas.includes(id)) : [];
+  const sobran = bajas.concat(noConv);
 
   // la primera vez que entras, la pregunta de los avisos va arriba del todo;
   // después vive al final, junto a la salida de sesión
@@ -250,11 +260,16 @@ async function pintarAlineacion() {
     <div class="tarjeta">
       <h2>Hola, ${esc(S.sesion.nombre)}</h2>
       <p>${S.guardado.length ? "Tu alineación está guardada. La última versión es la que cuenta." : "Todavía no has enviado tu alineación."}</p>
-      ${sobran.length && !cerrada
-        ? aviso(`La convocatoria ha dejado fuera a ${sobran.map(id => nombreJug(id)).join(", ")}. `
-              + `Tu alineación cuenta igual, pero ${sobran.length === 1 ? "ese jugador no puede acertar" : "esos jugadores no pueden acertar"}: `
-              + `te interesa cambiar${sobran.length === 1 ? "lo" : "los"} antes del cierre. `
-              + `Para poder guardar cualquier cambio tendrás que sustituir${sobran.length === 1 ? "lo" : "los"} primero.`)
+      ${bajas.length && !cerrada
+        ? aviso(`${bajas.map(id => nombreJug(id)).join(", ")} ya no está en la plantilla del Sevilla. `
+              + `Tu alineación cuenta igual, pero ${bajas.length === 1 ? "ese jugador no puede acertar" : "esos jugadores no pueden acertar"}: `
+              + `quíta${bajas.length === 1 ? "lo" : "los"} del campo y elige a ${bajas.length === 1 ? "otro" : "otros"} para poder guardar cambios.`)
+        : ""}
+      ${noConv.length && !cerrada
+        ? aviso(`La convocatoria ha dejado fuera a ${noConv.map(id => nombreJug(id)).join(", ")}. `
+              + `Tu alineación cuenta igual, pero ${noConv.length === 1 ? "ese jugador no puede acertar" : "esos jugadores no pueden acertar"}: `
+              + `te interesa cambiar${noConv.length === 1 ? "lo" : "los"} antes del cierre. `
+              + `Para poder guardar cualquier cambio tendrás que sustituir${noConv.length === 1 ? "lo" : "los"} primero.`)
         : ""}
       ${campoHTML(S.picks, sobran)}
       <p style="margin:14px 0 0"><span class="contador ${S.picks.length === 11 ? "completo" : ""}">${S.picks.length}/11</span> jugadores elegidos</p>
