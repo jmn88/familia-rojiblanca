@@ -482,8 +482,23 @@ ejecución deshace ese fichero entero.
 - **Al casar nombres, cuidado con los apellidos compartidos**: «Rafa Romero»
   (canterano) no puede hacerse pasar por «Isaac Romero». El listón está alto a
   propósito, tanto en JS como en Python.
+- **A un jugador se le da de baja, nunca se le borra**, y la baja no puede
+  esconderlo de la web. Los puntos aguantan solos (se calculan comparando
+  identificadores, sin mirar la plantilla), pero `api_estado` filtraba por
+  `activo` y entonces en las jornadas ya jugadas salía «#23» en vez de «Oso» y
+  el campo se dibujaba con diez. Ahora va la plantilla entera con su marca
+  `activo` y el que esconde a los de baja es el selector; lo que impide
+  alinearlos sigue en `api_guardar`, en SQL. Ojo también con quien ya tuviera al
+  vendido puesto en la jornada abierta: si el selector no lo enseña, se queda
+  con once elegidos y sin poder quitar al que sobra. Por eso sale tachado
+  mientras siga puesto.
 - **Los mensajes de éxito se pierden si repintas después.** En Admin, escribe el
   aviso *después* de `pintarAdmin()`, no antes.
+- **Probando la demo, el navegador se queda con el `app.js` viejo.** Cambiar el
+  fichero y recargar no basta: `navigate` a la misma URL no recarga, y el
+  servidor de Python contesta 304. Costó dar por bueno un arreglo que la página
+  ni siquiera estaba ejecutando. Para salir de dudas: `selectorHTML.toString()`
+  en la consola dice qué código hay cargado de verdad.
 - **En YAML, un heredoc dentro de `run: |` rompe la indentación.** Si necesitas
   varias líneas de Python, ponlo en un fichero de `robot/`.
 - **`02_api.sql` vuelve a dar permisos a TODAS las funciones cada vez que se
@@ -554,8 +569,9 @@ las trece comprobaciones nuevas, y `robot/horario.py` lee bien el calendario del
 club (37 jornadas, ninguna dudosa). **Falta verle hacer un pase de verdad**: el
 proceso no se había ejecutado todavía cuando se cerró la issue.
 
-**Las solicitudes para entrar (issue #11) están escritas pero aún NO aplicadas.**
-Comprobado en el navegador contra la demo, de punta a punta: pedir entrar con
+**Las solicitudes para entrar (issue #11) están en producción** y funcionando:
+Carmen pidió entrar, se le aprobó y ya juega y recibe avisos por correo.
+Comprobado antes en el navegador contra la demo, de punta a punta: pedir entrar con
 sus validaciones (nombre corto, PIN corto, nombre repetido, nombre que ya juega,
 correo malo), que el que lo pide no aparece en la lista de entrar hasta que se
 apruebe, aprobar (pasa a participante, con sus avisos, y entra con SU PIN, que
@@ -563,6 +579,11 @@ el equivocado se rechaza), y rechazar. También el recorrido de
 `robot/solicitudes.py` fingiendo el envío, con sus tres caminos. Lo que falta,
 porque aquí no hay PostgreSQL: **pasar `sql/99_autoprueba.sql`** (lleva
 veintisiete comprobaciones nuevas) y ver el primer correo de verdad.
+
+**El mercado de septiembre de 2026 se cierra con la rama
+`bajas-sin-borrar-historia`** (2 de septiembre de 2026), pendiente de PR. Antes
+de dar de baja a Oso hubo que arreglar que `api_estado` escondía a los jugadores
+inactivos: ver la trampa de las bajas, más arriba.
 
 ## Pendiente
 
@@ -580,8 +601,11 @@ veintisiete comprobaciones nuevas) y ver el primer correo de verdad.
    primera solicitud de verdad. Para probarlo sin esperar: pedir entrar desde la
    web con un nombre cualquiera, lanzar «Avisos por correo» a mano desde Actions
    y luego rechazar esa solicitud.
-4. **La plantilla** está pendiente del cierre del mercado de septiembre de 2026.
-   Se ajusta desde Admin.
+4. **La plantilla del cierre del mercado de septiembre de 2026**: se ajusta desde
+   Admin → Plantilla, pero **primero hay que fusionar
+   `bajas-sin-borrar-historia`**, o al dar de baja a Oso las jornadas 1 y 2 se
+   quedan escritas a medias. A los fichajes, alta normal; a Oso, quitarle el
+   «Activo» y nada más — borrarlo sí se llevaría por delante los puntos.
 5. **El robot del once no se ha estrenado en un partido de verdad**: se probó con
    el texto real ya publicado, pero aún no ha cazado una alineación él solo.
    Conviene mirar la primera con calma.
