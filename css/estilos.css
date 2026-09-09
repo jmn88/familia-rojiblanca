@@ -48,6 +48,15 @@ body {
 
 /* ------------------------------------------------------------- cabecera --- */
 
+/* Saltarse el menu con el teclado. Solo se ve cuando tiene el foco. */
+.saltar {
+  position: absolute; left: -9999px; top: 0; z-index: 10;
+  background: var(--papel); color: var(--rojo);
+  padding: 10px 16px; border-radius: 0 0 var(--radio) 0;
+  font-weight: 600; text-decoration: none;
+}
+.saltar:focus { left: 0; }
+
 header {
   background: var(--rojo);
   color: #fff;

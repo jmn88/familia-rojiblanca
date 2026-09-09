@@ -5,10 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#c8102e">
 <title>Familia Rojiblanca 26/27</title>
+<!-- la base de datos vive aqui (app/config.js): abrir la conexion ya
+     ahorra el tiempo de DNS y cifrado de la primera consulta -->
+<link rel="preconnect" href="https://mcjtduyluwajemmvhren.supabase.co" crossorigin>
 <link rel="stylesheet" href="css/estilos.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23c8102e'/><text x='16' y='23' font-size='18' font-weight='bold' text-anchor='middle' fill='white'>S</text></svg>">
 </head>
 <body>
+
+<a class="saltar" href="#contenido">Saltar al contenido</a>
 
 <header>
   <div class="marca">
@@ -26,7 +31,7 @@
   </nav>
 </header>
 
-<main>
+<main id="contenido" tabindex="-1">
   <section id="v-alineacion" class="vista"><p class="cargando">Cargando…</p></section>
   <section id="v-jornada"    class="vista"></section>
   <section id="v-general"    class="vista"></section>
