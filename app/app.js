@@ -74,9 +74,10 @@ function textoCuenta(cierre) {
   if (ms <= 0) return { texto: "Plazo cerrado", clase: "cerrada" };
   const d = Math.floor(ms / 864e5), h = Math.floor(ms / 36e5) % 24,
         m = Math.floor(ms / 6e4) % 60, s = Math.floor(ms / 1e3) % 60;
-  const partes = d ? [`${d} d`, `${h} h`, `${m} min`]
-                   : h ? [`${h} h`, `${m} min`, `${String(s).padStart(2, "0")} s`]
-                       : [`${m} min`, `${String(s).padStart(2, "0")} s`];
+  //   es un espacio duro: «5 h» no se puede partir en dos renglones
+  const partes = d ? [`${d} d`, `${h} h`, `${m} min`]
+                   : h ? [`${h} h`, `${m} min`, `${String(s).padStart(2, "0")} s`]
+                       : [`${m} min`, `${String(s).padStart(2, "0")} s`];
   return { texto: `Cierra en ${partes.join(" ")}`, clase: ms < 36e5 ? "urgente" : "" };
 }
 
@@ -88,6 +89,19 @@ function paraInputFecha(iso) {
 
 function aviso(texto, tipo = "") {
   return texto ? `<div class="aviso ${tipo}">${esc(texto)}</div>` : "";
+}
+
+/* Bloquea el boton mientras se habla con el servidor: con conexion lenta se
+   puede pulsar dos veces y mandarlo todo dos veces. Si al terminar la pantalla
+   se ha repintado, el boton ya no esta en el documento y no hay que devolverlo
+   a su sitio. */
+async function conBoton(btn, fn) {
+  if (!btn || btn.disabled) return;
+  const texto = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Un momento…";
+  try { return await fn(); }
+  finally { if (btn.isConnected) { btn.disabled = false; btn.textContent = texto; } }
 }
 
 function puestos(filas, campo = "puntos") {
@@ -275,7 +289,7 @@ async function pintarAlineacion() {
       <p style="margin:14px 0 0"><span class="contador ${S.picks.length === 11 ? "completo" : ""}">${S.picks.length}/11</span> jugadores elegidos</p>
       ${conv ? `<p class="cuando">En gris, los que no están en la convocatoria.</p>` : ""}
       <div id="selector">${selectorHTML(S.picks, { bloqueado: cerrada, convocatoria: conv })}</div>
-      <div id="mensaje-guardar"></div>
+      <div id="mensaje-guardar" aria-live="polite"></div>
       ${cerrada ? "" : `<div class="barra-guardar">
         <button class="principal" id="btn-guardar" ${S.picks.length === 11 && cambiado && !sobran.length ? "" : "disabled"}>
           ${S.guardado.length ? "Actualizar mi alineación" : "Enviar mi alineación"}</button>
@@ -311,12 +325,12 @@ function avisosHTML() {
        recordándotelo. Nada más: ni resultados, ni clasificaciones, ni nada que no sea eso.</p>
     ${primera ? "" : estado}
     <label for="inp-email">Tu correo</label>
-    <input id="inp-email" type="email" inputmode="email" autocomplete="email"
+    <input id="inp-email" type="email" inputmode="email" autocomplete="email" spellcheck="false"
            placeholder="${pista ? esc(pista) : "nombre@correo.com"}">
     <p class="cuando" style="margin-top:6px">Se guarda cifrado y no sale de la base de datos:
        ni aparece en la web, ni lo ve nadie del grupo, ni el administrador — él solo ve
        ${esc(pista || "j***@correo.com")}. Solo se usa para mandarte ese aviso.</p>
-    <div id="msg-avisos"></div>
+    <div id="msg-avisos" aria-live="polite"></div>
     <p style="margin-top:14px">
       <button class="principal" id="btn-avisos">${
         s.avisos ? "Cambiar mi correo" : pista ? "Encender los avisos" : "Avisadme"}</button>
@@ -352,7 +366,7 @@ function loginHTML() {
     </select>
     <label for="inp-pin">PIN de 4 dígitos</label>
     <input id="inp-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
-    <div id="mensaje-login">${S.solicitado ? aviso(S.solicitado, "ok") : ""}</div>
+    <div id="mensaje-login" aria-live="polite">${S.solicitado ? aviso(S.solicitado, "ok") : ""}</div>
     <p style="margin-top:14px"><button class="principal" id="btn-entrar" style="width:100%">Entrar</button></p>
     <hr style="margin:18px 0;border:0;border-top:1px solid var(--borde)">
     <p class="cuando" style="margin-bottom:8px">¿No estás en la lista y quieres jugar?</p>
@@ -367,14 +381,15 @@ function solicitarHTML() {
     <h2>Pedir entrar en la porra</h2>
     <p>Rellena esto y le llegará un aviso a Jesús. Cuando lo apruebe, ya podrás entrar con tu nombre y el PIN que elijas ahora.</p>
     <label for="sol-nombre">Tu nombre</label>
-    <input id="sol-nombre" maxlength="30" autocomplete="off" placeholder="Cómo quieres que te llamemos">
+    <input id="sol-nombre" maxlength="30" autocomplete="off" placeholder="Cómo quieres que te llamemos…">
     <label for="sol-pin">PIN de 4 dígitos</label>
     <input id="sol-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••">
     <p class="cuando" style="margin:6px 0 0">Es el que usarás para entrar. Apúntatelo: no se puede consultar, solo reiniciar.</p>
     <label for="sol-email" style="margin-top:14px">Correo (si quieres avisos)</label>
-    <input id="sol-email" type="email" autocomplete="off" placeholder="nombre@correo.com">
+    <input id="sol-email" type="email" inputmode="email" autocomplete="email" spellcheck="false"
+           placeholder="nombre@correo.com">
     <p class="cuando" style="margin:6px 0 0">Opcional. Sirve para avisarte cuando se sepa la convocatoria y cuando te falte la alineación. Se guarda cifrado y no lo ve nadie, ni el administrador. Sin correo, no se te avisa de nada.</p>
-    <div id="msg-solicitud"></div>
+    <div id="msg-solicitud" aria-live="polite"></div>
     <p style="margin-top:14px"><button class="principal" id="btn-solicitar" style="width:100%">Enviar la solicitud</button></p>
     <p style="margin-top:6px"><button id="btn-cancelar-solicitud" style="width:100%">Volver</button></p>
   </div>`;
@@ -386,12 +401,12 @@ async function solicitar() {
   const pin = $("#sol-pin").value.trim();
   const email = $("#sol-email").value.trim();
 
-  if (nombre.length < 2) { caja.innerHTML = aviso("Escribe tu nombre.", "error"); return; }
-  if (!/^\d{4}$/.test(pin)) { caja.innerHTML = aviso("El PIN son 4 dígitos.", "error"); return; }
+  if (nombre.length < 2) { caja.innerHTML = aviso("Escribe tu nombre.", "error"); $("#sol-nombre").focus(); return; }
+  if (!/^\d{4}$/.test(pin)) { caja.innerHTML = aviso("El PIN son 4 dígitos.", "error"); $("#sol-pin").focus(); return; }
 
   const r = await API.rpc("api_solicitar",
     { p_nombre: nombre, p_pin: pin, p_email: email || null });
-  if (!r.ok) { caja.innerHTML = aviso(r.error, "error"); return; }
+  if (!r.ok) { caja.innerHTML = aviso(r.error, "error"); $("#sol-nombre").focus(); return; }
 
   S.pidiendo = false;
   S.solicitado = `Solicitud enviada como «${r.nombre}». Jesús tiene que aprobarla; en cuanto lo haga, `
@@ -403,11 +418,11 @@ async function entrar() {
   const caja = $("#mensaje-login");
   const id = Number($("#sel-part").value);
   const pin = $("#inp-pin").value.trim();
-  if (!id) { caja.innerHTML = aviso("Elige tu nombre en la lista.", "error"); return; }
-  if (!/^\d{4}$/.test(pin)) { caja.innerHTML = aviso("El PIN son 4 dígitos.", "error"); return; }
+  if (!id) { caja.innerHTML = aviso("Elige tu nombre en la lista.", "error"); $("#sel-part").focus(); return; }
+  if (!/^\d{4}$/.test(pin)) { caja.innerHTML = aviso("El PIN son 4 dígitos.", "error"); $("#inp-pin").focus(); return; }
 
   const r = await API.rpc("api_login", { p_participante: id, p_pin: pin });
-  if (!r.ok) { caja.innerHTML = aviso(r.error, "error"); return; }
+  if (!r.ok) { caja.innerHTML = aviso(r.error, "error"); $("#inp-pin").focus(); return; }
 
   S.token = r.token;
   localStorage.setItem("fr_token", r.token);
@@ -646,7 +661,7 @@ async function pintarAdmin() {
 
     <h3>${ed ? `Editar jornada ${ed.numero}` : "Añadir jornada"}</h3>
     <div class="fila">
-      <div><label for="adm-num">Jornada</label><input id="adm-num" type="number" min="1" max="38" value="${ed ? ed.numero : ""}"></div>
+      <div><label for="adm-num">Jornada</label><input id="adm-num" type="number" inputmode="numeric" min="1" max="38" value="${ed ? ed.numero : ""}"></div>
       <div style="flex:2 1 200px"><label for="adm-rival">Rival</label><input id="adm-rival" value="${ed ? esc(ed.rival) : ""}"></div>
       <div><label for="adm-casa">Campo</label><select id="adm-casa">
         <option value="1" ${!ed || ed.en_casa ? "selected" : ""}>En el Pizjuán</option>
@@ -654,13 +669,13 @@ async function pintarAdmin() {
     </div>
     <div class="fila">
       <div style="flex:2 1 220px"><label for="adm-kick">Día y hora del partido</label><input id="adm-kick" type="datetime-local" value="${kickoffLocal}"></div>
-      <div><label for="adm-antes">Cierre (min antes)</label><input id="adm-antes" type="number" min="0" max="600" value="60"></div>
+      <div><label for="adm-antes">Cierre (min antes)</label><input id="adm-antes" type="number" inputmode="numeric" min="0" max="600" value="60"></div>
       <div style="flex:1 1 200px"><label for="adm-confirmada">¿Hora oficial?</label>
         <p style="margin:0"><input id="adm-confirmada" type="checkbox" ${ed && ed.hora_confirmada ? "checked" : ""}>
         <span class="cuando">LaLiga ya la ha confirmado</span></p>
         <p class="cuando" style="margin:4px 0 0">Si lo dejas sin marcar, la web avisa de que es orientativa.</p></div>
     </div>
-    <div id="msg-jornada"></div>
+    <div id="msg-jornada" aria-live="polite"></div>
     <p><button class="principal" id="btn-jornada">${ed ? "Guardar cambios" : "Crear jornada"}</button>
        ${ed ? `<button id="btn-cancelar-jornada">Cancelar</button>` : ""}</p>
   </div>
@@ -685,7 +700,7 @@ async function pintarAdmin() {
     <p class="cuando">La foto no se sube a ningún sitio: se lee aquí mismo, en tu móvil. La primera vez tarda más porque se descarga el lector de texto.</p>
     <input type="file" id="adm-foto" accept="image/*">
     <p style="margin-top:10px"><button id="btn-analizar">Analizar la foto</button></p>
-    <div id="msg-conv"></div>
+    <div id="msg-conv" aria-live="polite"></div>
     ${lecturaHTML()}
 
     <h3>Convocados <span class="contador" id="conv-cuenta">${S.adminConv.length}</span></h3>
@@ -715,7 +730,7 @@ async function pintarAdmin() {
     <p style="margin:14px 0 0"><span class="contador ${S.adminOnce.length === 11 ? "completo" : ""}">${S.adminOnce.length}/11</span> titulares</p>
     ${convDelOnce ? `<p class="cuando">En gris, los que no estaban convocados. Si jugó alguno, corrige antes la convocatoria.</p>` : ""}
     <div id="selector-admin">${selectorHTML(S.adminOnce, { admin: true, convocatoria: convDelOnce })}</div>
-    <div id="msg-once"></div>
+    <div id="msg-once" aria-live="polite"></div>
     <p><button class="principal" id="btn-once" ${S.adminOnce.length === 11 ? "" : "disabled"}>Guardar once oficial</button>
        <button id="btn-despublicar">Quitar</button></p>
   </div>
@@ -746,7 +761,7 @@ async function pintarAdmin() {
       <div style="flex:0;align-self:end"><button id="btn-avisar-a">Guardar</button></div>
     </div>
     <p class="cuando">Se usa el correo que esa persona tenga puesto en sus avisos. Si no tiene, el aviso no sale y queda dicho en el registro del proceso.</p>
-    <div id="msg-solicitudes"></div>
+    <div id="msg-solicitudes" aria-live="polite"></div>
   </div>
 
   <div class="tarjeta">
@@ -764,10 +779,10 @@ async function pintarAdmin() {
     <p class="cuando">En «Avisos», el correo de cada uno tal y como puedes verlo: nunca entero.
        Lo pone y lo quita cada cual desde su pantalla; tú no puedes cambiarlo.</p>
     <div class="fila" style="margin-top:12px">
-      <div><label for="adm-part">Añadir participante</label><input id="adm-part" placeholder="Nombre"></div>
+      <div><label for="adm-part">Añadir participante</label><input id="adm-part" placeholder="Nombre\u2026"></div>
       <div style="flex:0"><button id="btn-part">Añadir</button></div>
     </div>
-    <div id="msg-part"></div>
+    <div id="msg-part" aria-live="polite"></div>
   </div>
 
   <div class="tarjeta">
@@ -776,21 +791,23 @@ async function pintarAdmin() {
     <div class="tabla-scroll"><table>
       <thead><tr><th class="num">Dorsal</th><th>Nombre</th><th>Posición</th><th>Activo</th><th></th></tr></thead>
       <tbody>${(S.estadoAdm.jugadores || []).map(g => `<tr data-jugador="${g.id}">
-        <td><input class="j-dorsal" type="number" value="${g.dorsal ?? ""}" style="width:70px"></td>
-        <td><input class="j-nombre" value="${esc(g.nombre)}"></td>
-        <td><select class="j-pos">${POSICIONES.map(([c, t]) =>
+        <td><input class="j-dorsal" type="number" inputmode="numeric" value="${g.dorsal ?? ""}" style="width:70px"
+                   aria-label="Dorsal de ${esc(g.nombre)}"></td>
+        <td><input class="j-nombre" value="${esc(g.nombre)}" aria-label="Nombre de ${esc(g.nombre)}"></td>
+        <td><select class="j-pos" aria-label="Posición de ${esc(g.nombre)}">${POSICIONES.map(([c, t]) =>
               `<option value="${c}" ${g.posicion === c ? "selected" : ""}>${t.slice(0, -1)}</option>`).join("")}</select></td>
-        <td><input class="j-activo" type="checkbox" ${g.activo !== false ? "checked" : ""}></td>
+        <td><input class="j-activo" type="checkbox" ${g.activo !== false ? "checked" : ""}
+                   aria-label="${esc(g.nombre)} sigue en la plantilla"></td>
         <td><button class="menor" data-guardar-jugador="${g.id}">Guardar</button></td>
       </tr>`).join("")}</tbody>
     </table></div>
     <div class="fila" style="margin-top:12px">
-      <div style="flex:0 0 90px"><label for="adm-jd">Dorsal</label><input id="adm-jd" type="number"></div>
-      <div><label for="adm-jn">Nuevo jugador</label><input id="adm-jn" placeholder="Nombre"></div>
+      <div style="flex:0 0 90px"><label for="adm-jd">Dorsal</label><input id="adm-jd" type="number" inputmode="numeric"></div>
+      <div><label for="adm-jn">Nuevo jugador</label><input id="adm-jn" placeholder="Nombre\u2026"></div>
       <div style="flex:0 0 150px"><label for="adm-jp">Posición</label><select id="adm-jp">${POSICIONES.map(([c, t]) => `<option value="${c}">${t.slice(0, -1)}</option>`).join("")}</select></div>
       <div style="flex:0"><button id="btn-jugador">Añadir</button></div>
     </div>
-    <div id="msg-jug"></div>
+    <div id="msg-jug" aria-live="polite"></div>
   </div>
 
   <p class="pie"><button class="enlace" id="btn-salir-admin">Salir del modo administrador</button></p>`;
@@ -808,7 +825,7 @@ function adminLoginHTML(mensaje) {
     <label for="adm-pass">Contraseña de administrador</label>
     <input id="adm-pass" type="password" autocomplete="off" placeholder="mínimo 6 caracteres">
     <p class="cuando">Si es la primera vez, la contraseña que escribas queda fijada como la de administrador.</p>
-    <div id="msg-admin"></div>
+    <div id="msg-admin" aria-live="polite"></div>
     <p><button class="principal" id="btn-admin-entrar" style="width:100%">Entrar</button></p>
   </div>`;
 }
@@ -910,6 +927,10 @@ document.addEventListener("click", async ev => {
       const i = lista.indexOf(id);
       if (i >= 0) lista.splice(i, 1); else if (lista.length < 11) lista.push(id);
       if (admin) await pintarAdmin(); else await pintarAlineacion();
+      // el repintado se lleva por delante el boton pulsado: se le devuelve el
+      // foco al mismo jugador, que si no con el teclado hay que bajar otra vez
+      const vuelve = $(`${admin ? "#selector-admin" : "#selector"} [data-elegir="${id}"]`);
+      if (vuelve && !vuelve.disabled) vuelve.focus({ preventScroll: true });
       return;
     }
 
@@ -927,7 +948,7 @@ document.addEventListener("click", async ev => {
       return;
     }
 
-    if (t.id === "btn-entrar")  { await entrar(); return; }
+    if (t.id === "btn-entrar")  { await conBoton(t, entrar); return; }
     if (t.id === "btn-guardar") { await guardarAlineacion(); return; }
 
     // --- pedir entrar en la porra ---
@@ -939,7 +960,7 @@ document.addEventListener("click", async ev => {
       S.pidiendo = false;
       await pintarAlineacion(); return;
     }
-    if (t.id === "btn-solicitar") { await solicitar(); return; }
+    if (t.id === "btn-solicitar") { await conBoton(t, solicitar); return; }
 
     // --- avisos por correo ---
     if (t.id === "btn-avisos") {
@@ -978,10 +999,13 @@ document.addEventListener("click", async ev => {
 
     // --- admin ---
     if (t.id === "btn-admin-entrar") {
-      const r = await API.rpc("api_admin_login", { p_pass: $("#adm-pass").value });
-      if (!r.ok) { $("#msg-admin").innerHTML = aviso(r.error, "error"); return; }
-      S.adminToken = r.token; localStorage.setItem("fr_admin", r.token);
-      await pintarAdmin(); return;
+      await conBoton(t, async () => {
+        const r = await API.rpc("api_admin_login", { p_pass: $("#adm-pass").value });
+        if (!r.ok) { $("#msg-admin").innerHTML = aviso(r.error, "error"); $("#adm-pass").focus(); return; }
+        S.adminToken = r.token; localStorage.setItem("fr_admin", r.token);
+        await pintarAdmin();
+      });
+      return;
     }
     if (t.id === "btn-salir-admin") {
       await API.rpc("api_logout", { p_token: S.adminToken }).catch(() => {});
@@ -996,18 +1020,24 @@ document.addEventListener("click", async ev => {
     if (t.id === "btn-cancelar-jornada") { S.adminEditando = null; await pintarAdmin(); return; }
 
     if (t.id === "btn-jornada") {
-      const kick = $("#adm-kick").value;
-      if (!kick) { $("#msg-jornada").innerHTML = aviso("Falta el día y la hora del partido.", "error"); return; }
-      const r = await accionAdmin("api_admin_jornada", {
-        p_id: S.adminEditando?.id ?? null,
-        p_numero: Number($("#adm-num").value),
-        p_rival: $("#adm-rival").value,
-        p_en_casa: $("#adm-casa").value === "1",
-        p_kickoff: new Date(kick).toISOString(),
-        p_minutos_antes: Number($("#adm-antes").value || 60),
-        p_hora_confirmada: $("#adm-confirmada").checked
-      }, "#msg-jornada");
-      if (r) { S.adminEditando = null; await cargarEstado(); await pintarAdmin(); }
+      await conBoton(t, async () => {
+        const kick = $("#adm-kick").value;
+        if (!kick) {
+          $("#msg-jornada").innerHTML = aviso("Falta el día y la hora del partido.", "error");
+          $("#adm-kick").focus();
+          return;
+        }
+        const r = await accionAdmin("api_admin_jornada", {
+          p_id: S.adminEditando?.id ?? null,
+          p_numero: Number($("#adm-num").value),
+          p_rival: $("#adm-rival").value,
+          p_en_casa: $("#adm-casa").value === "1",
+          p_kickoff: new Date(kick).toISOString(),
+          p_minutos_antes: Number($("#adm-antes").value || 60),
+          p_hora_confirmada: $("#adm-confirmada").checked
+        }, "#msg-jornada");
+        if (r) { S.adminEditando = null; await cargarEstado(); await pintarAdmin(); }
+      });
       return;
     }
     if (t.dataset.prorrogar) {
@@ -1071,6 +1101,7 @@ document.addEventListener("click", async ev => {
       return;
     }
     if (t.id === "btn-conv") {
+      await conBoton(t, async () => {
       const r = await accionAdmin("api_admin_convocatoria",
         { p_jornada: S.convJornada, p_jugadores: S.adminConv }, "#msg-conv");
       if (r) {
@@ -1085,6 +1116,7 @@ document.addEventListener("click", async ev => {
             : ""),
           r.afectadas ? "" : "ok");
       }
+      });
       return;
     }
     if (t.id === "btn-conv-quitar") {
@@ -1106,9 +1138,11 @@ document.addEventListener("click", async ev => {
       return;
     }
     if (t.id === "btn-once") {
-      const r = await accionAdmin("api_admin_once",
-        { p_jornada: S.adminJornada, p_picks: S.adminOnce }, "#msg-once", "Once oficial guardado. Ya están calculadas las puntuaciones.");
-      if (r) { S.oncePropuesto = null; S.onceFuente = null; await cargarEstado(); }
+      await conBoton(t, async () => {
+        const r = await accionAdmin("api_admin_once",
+          { p_jornada: S.adminJornada, p_picks: S.adminOnce }, "#msg-once", "Once oficial guardado. Ya están calculadas las puntuaciones.");
+        if (r) { S.oncePropuesto = null; S.onceFuente = null; await cargarEstado(); }
+      });
       return;
     }
     if (t.id === "btn-despublicar") {
@@ -1224,7 +1258,10 @@ async function mostrar(vista) {
   if (!VISTAS.includes(vista)) vista = "alineacion";
   VISTAS.forEach(v => {
     $(`#v-${v}`).classList.toggle("activa", v === vista);
-    $(`nav a[data-vista="${v}"]`).classList.toggle("activa", v === vista);
+    const enlace = $(`nav a[data-vista="${v}"]`);
+    enlace.classList.toggle("activa", v === vista);
+    if (v === vista) enlace.setAttribute("aria-current", "page");
+    else enlace.removeAttribute("aria-current");
   });
   try {
     if (vista === "alineacion") await pintarAlineacion();
@@ -1236,7 +1273,21 @@ async function mostrar(vista) {
   }
 }
 
-window.addEventListener("hashchange", () => mostrar(location.hash.slice(1)));
+window.addEventListener("hashchange", () => {
+  const h = location.hash.slice(1);
+  if (h === "contenido") return;   // el enlace de saltar al contenido, no una pestaña
+  mostrar(h);
+});
+
+/* Si has tocado el once y no lo has guardado, el navegador pregunta antes de
+   cerrar la pestaña. Solo cuando hay algo que guardar de verdad: con el plazo
+   cerrado no existe el botón. */
+window.addEventListener("beforeunload", ev => {
+  if (!$("#btn-guardar")) return;
+  if (JSON.stringify([...S.picks].sort()) === JSON.stringify([...S.guardado].sort())) return;
+  ev.preventDefault();
+  ev.returnValue = "";
+});
 
 /* la cuenta atrás, y recarga automática justo al cumplirse el plazo */
 const estadoCierre = new Map();   // cierre -> estaba cerrado en el tic anterior
@@ -1253,7 +1304,8 @@ setInterval(() => {
   });
   if (acaba_de_cerrar) {
     S.jornadaMia = null;
-    cargarEstado().then(() => mostrar(location.hash.slice(1) || "alineacion"));
+    const actual = VISTAS.find(v => $(`#v-${v}`).classList.contains("activa")) || "alineacion";
+    cargarEstado().then(() => mostrar(actual));
   }
 }, 1000);
 

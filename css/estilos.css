@@ -1,4 +1,6 @@
 :root {
+  color-scheme: light dark;
+
   --rojo: #c8102e;
   --rojo-osc: #9c0c23;
   --tinta: #14161a;
@@ -27,6 +29,15 @@
 
 * { box-sizing: border-box; }
 
+/* Se ve por donde vas con el teclado. En la cabecera el aro va en blanco:
+   el rojo sobre rojo no se distinguiria. */
+:focus-visible { outline: 2px solid var(--rojo); outline-offset: 2px; }
+header :focus-visible { outline-color: #fff; }
+
+/* touch-action quita el retraso de ~300 ms que iOS deja por si vas a hacer
+   doble toque para ampliar; elegir el once son muchos toques seguidos. */
+button, a, summary { touch-action: manipulation; -webkit-tap-highlight-color: rgba(200, 16, 46, .15); }
+
 body {
   margin: 0;
   background: var(--fondo);
@@ -37,10 +48,19 @@ body {
 
 /* ------------------------------------------------------------- cabecera --- */
 
+/* Saltarse el menu con el teclado. Solo se ve cuando tiene el foco. */
+.saltar {
+  position: absolute; left: -9999px; top: 0; z-index: 10;
+  background: var(--papel); color: var(--rojo);
+  padding: 10px 16px; border-radius: 0 0 var(--radio) 0;
+  font-weight: 600; text-decoration: none;
+}
+.saltar:focus { left: 0; }
+
 header {
   background: var(--rojo);
   color: #fff;
-  padding: 14px 16px 0;
+  padding: 14px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
   box-shadow: var(--sombra);
 }
 
@@ -60,9 +80,16 @@ nav a {
   padding: 9px 14px; border-radius: 10px 10px 0 0;
   font-size: 14.5px; font-weight: 600; opacity: .8;
 }
+@media (hover: hover) {
+  nav a:hover { opacity: 1; background: rgba(255, 255, 255, .14); }
+}
 nav a.activa { background: var(--fondo); color: var(--rojo); opacity: 1; }
 
-main { max-width: 900px; margin: 0 auto; padding: 16px 16px 96px; }
+main {
+  max-width: 900px; margin: 0 auto;
+  padding: 16px max(16px, env(safe-area-inset-right))
+           calc(96px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
 .vista { display: none; }
 .vista.activa { display: block; }
 
@@ -116,7 +143,7 @@ h3:first-child { margin-top: 0; }
 
 .campo {
   background:
-    repeating-linear-gradient(0deg, #2e8b52 0 34px, #2a7f4b 34px 68px);
+    repeating-linear-gradient(0deg, #2a7f4b 0 34px, #256e42 34px 68px);
   border-radius: var(--radio);
   padding: 14px 8px;
   display: grid;
@@ -140,7 +167,7 @@ h3:first-child { margin-top: 0; }
 /* sigue en la alineación, pero se quedó sin convocar: no puede acertar */
 .ficha.fuera .nom { text-decoration: line-through; opacity: .75; }
 .ficha.fuera .dorsal { background: #e6e6e6; color: #8a8a8a; border-color: #b9b9b9; }
-.campo-vacio { color: rgba(255,255,255,.75); text-align: center; font-size: 13px; padding: 20px 0; }
+.campo-vacio { color: rgba(255,255,255,.9); text-align: center; font-size: 13px; padding: 20px 0; }
 
 /* ------------------------------------------------------------ selector --- */
 
@@ -153,6 +180,7 @@ h3:first-child { margin-top: 0; }
   border: 1px solid var(--borde); background: var(--papel); color: var(--tinta);
   border-radius: 999px; padding: 6px 12px 6px 7px;
   font-size: 14px; cursor: pointer; font-family: inherit;
+  min-height: 44px;
 }
 .jug .n {
   min-width: 22px; height: 22px; border-radius: 50%;
@@ -165,6 +193,10 @@ h3:first-child { margin-top: 0; }
 /* fuera de la convocatoria: se ve, pero no se puede elegir */
 .jug.fuera { text-decoration: line-through; }
 .jug.fuera[aria-pressed="true"] { background: var(--rojo-osc); border-color: var(--rojo-osc); }
+@media (hover: hover) {
+  .jug:hover:not(:disabled) { border-color: var(--rojo); }
+  .jug[aria-pressed="true"]:hover:not(:disabled) { background: var(--rojo-osc); border-color: var(--rojo-osc); }
+}
 
 .texto-leido {
   max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word;
@@ -185,7 +217,7 @@ td.puesto { font-weight: 700; width: 34px; }
 .puntos-dia { font-weight: 800; }
 .no-participo { color: var(--suave); font-style: italic; }
 
-.matriz td, .matriz th { padding: 6px 8px; font-size: 13px; text-align: center; }
+.matriz td, .matriz th { padding: 6px 8px; font-size: 13px; text-align: center; font-variant-numeric: tabular-nums; }
 .matriz th:first-child, .matriz td:first-child { text-align: left; position: sticky; left: 0; background: var(--papel); }
 .matriz .cero { color: var(--suave); }
 
@@ -218,15 +250,22 @@ button {
   font: inherit; font-weight: 600; cursor: pointer;
   border: 1px solid var(--borde); background: var(--papel); color: var(--tinta);
   border-radius: 10px; padding: 10px 16px;
+  min-height: 44px;
 }
 button.principal { background: var(--rojo); border-color: var(--rojo); color: #fff; }
 button.principal:disabled { background: var(--suave); border-color: var(--suave); cursor: not-allowed; }
-button.menor { padding: 6px 10px; font-size: 13px; }
-button.enlace { border: none; background: none; color: var(--rojo); padding: 4px; text-decoration: underline; }
+button.menor { padding: 6px 10px; font-size: 13px; min-height: 36px; }
+/* va dentro de frases: ahi el alto minimo del dedo desmonta el renglon */
+button.enlace { border: none; background: none; color: var(--rojo); padding: 4px; text-decoration: underline; min-height: 0; }
+@media (hover: hover) {
+  button:hover:not(:disabled) { border-color: var(--suave); }
+  button.principal:hover:not(:disabled) { background: var(--rojo-osc); border-color: var(--rojo-osc); }
+  button.enlace:hover { color: var(--rojo-osc); }
+}
 
 .barra-guardar {
   position: sticky; bottom: 0; margin: 0 -16px -16px;
-  padding: 12px 16px; background: var(--papel);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--papel);
   border-top: 1px solid var(--borde);
   display: flex; gap: 12px; align-items: center; justify-content: space-between;
 }
