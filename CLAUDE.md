@@ -520,6 +520,12 @@ ejecución deshace ese fichero entero.
   JSON de `robot_avisos_pendientes()` lleva los correos descifrados: `avisos.yml`
   no lo imprime nunca, y `robot/avisos.py` tapa cualquier dirección que pudiera
   venir en un mensaje de error de Brevo. No añadas un `cat pendientes.json`.
+- **Repintar la pantalla entera se lleva el foco por delante.** Casi toda la web
+  se dibuja con `innerHTML`, así que cualquier acción que repinte destruye el
+  elemento que acabas de pulsar y el foco del teclado se va al principio de la
+  página. Elegir jugador lo hacía once veces seguidas. Si añades algo que
+  repinte, devuelve el foco después (`app.js`, `data-elegir`) o actualiza solo lo
+  que cambia, como ya hace el selector de convocatoria.
 - **Puede haber más de una sesión de Claude trabajando en esta carpeta.** Ya pasó:
   una sesión hizo commit del trabajo a medias de la otra. Si ves cambios que no
   son tuyos, para y pregunta. (Vuelve a pasar: en agosto de 2026 otra sesión tenía
@@ -587,6 +593,18 @@ inactivos: ver la trampa de las bajas, más arriba.
 
 ## Pendiente
 
+0. **PR «Guías de interfaz» sin fusionar** (rama `guias-de-interfaz`, septiembre
+   de 2026): repaso de la web contra las Web Interface Guidelines, en tres
+   commits sueltos para poder revertir uno solo. Van la errata del pie
+   («11 aciertos 100» sin flecha), un bloque de CSS (`color-scheme` para que el
+   modo oscuro alcance a los desplegables y las barras de scroll, `env(safe-area-
+   inset-*)` para la muesca del iPhone, `:focus-visible`, `:hover`,
+   `touch-action`, 44 px de alto en lo que se toca y el césped más oscuro para
+   que el nombre en blanco pase el contraste) y un bloque de accesibilidad
+   (`aria-live` en los mensajes, foco que no se pierde al elegir jugador,
+   `aria-current`, botones que no se pueden pulsar dos veces, aviso al salir con
+   el once sin guardar, `preconnect` a Supabase). Comprobado entero en
+   `demo.html`. **No toca ni SQL ni los robots.**
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
    siempre en rojo** — lanza una excepción para revertir lo que crea; lo que vale
