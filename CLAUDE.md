@@ -205,6 +205,19 @@ navegador.
   calcula en el navegador con `kickoff`, sin estado nuevo) y enseña el último
   intento del robot (`once_robot_intento` / `once_robot_motivo`).
 
+### El resumen de la jornada para WhatsApp
+- **Se dibuja en el navegador y lo comparte la persona**, no un robot. Motivo:
+  WhatsApp no admite publicar nada automáticamente, y en el móvil
+  `navigator.share` abre la hoja de compartir del sistema con la imagen ya
+  hecha, que lleva a WhatsApp en un toque. Sin servidor, sin librerías: un
+  `<canvas>` en `app/resumen.js`, 1080 px de ancho (lo que WhatsApp enseña sin
+  recortar), y el alto el que haga falta.
+- **La general se pide por adelantado** al pintar la jornada (`S.generalPromesa`)
+  para que al pulsar no haya espera: el permiso de compartir del navegador
+  caduca a los pocos segundos del toque, y una consulta lenta lo tiraría a la
+  descarga.
+- Sin hoja de compartir (ordenador) se descarga el PNG y se avisa.
+
 ### Las solicitudes para entrar (issue #11)
 - **Una solicitud NO es un participante.** Vive en su propia tabla
   (`solicitudes`) hasta que se aprueba. Se descartó una columna `aprobado` dentro
@@ -359,6 +372,7 @@ app/config.js         URL y clave de Supabase
 app/api.js            llamadas RPC a la base de datos
 app/demo.js           base de datos falsa, solo para demo.html
 app/convocatoria.js   lee la foto de la convocatoria (imagen -> lista de jugadores)
+app/resumen.js        dibuja el resumen de la jornada como imagen (para WhatsApp)
 app/app.js            toda la lógica de la interfaz
 robot/comun.py        pedir páginas del club y casar nombres con la plantilla
 robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
@@ -586,6 +600,11 @@ el equivocado se rechaza), y rechazar. También el recorrido de
 porque aquí no hay PostgreSQL: **pasar `sql/99_autoprueba.sql`** (lleva
 veintisiete comprobaciones nuevas) y ver el primer correo de verdad.
 
+**El repaso contra las guías de interfaz está en producción** (PR #19, 9 de
+septiembre de 2026): modo oscuro completo, foco que no se pierde, botones que
+no se pulsan dos veces, tamaño de los toques. Comprobado descargando la web
+publicada: `app.js` idéntico byte a byte al del repositorio.
+
 **El mercado de septiembre de 2026 se cierra con la rama
 `bajas-sin-borrar-historia`** (2 de septiembre de 2026), pendiente de PR. Antes
 de dar de baja a Oso hubo que arreglar que `api_estado` escondía a los jugadores
@@ -593,18 +612,13 @@ inactivos: ver la trampa de las bajas, más arriba.
 
 ## Pendiente
 
-0. **PR «Guías de interfaz» sin fusionar** (rama `guias-de-interfaz`, septiembre
-   de 2026): repaso de la web contra las Web Interface Guidelines, en tres
-   commits sueltos para poder revertir uno solo. Van la errata del pie
-   («11 aciertos 100» sin flecha), un bloque de CSS (`color-scheme` para que el
-   modo oscuro alcance a los desplegables y las barras de scroll, `env(safe-area-
-   inset-*)` para la muesca del iPhone, `:focus-visible`, `:hover`,
-   `touch-action`, 44 px de alto en lo que se toca y el césped más oscuro para
-   que el nombre en blanco pase el contraste) y un bloque de accesibilidad
-   (`aria-live` en los mensajes, foco que no se pierde al elegir jugador,
-   `aria-current`, botones que no se pueden pulsar dos veces, aviso al salir con
-   el once sin guardar, `preconnect` a Supabase). Comprobado entero en
-   `demo.html`. **No toca ni SQL ni los robots.**
+0. **PR «Resumen para WhatsApp» sin fusionar** (rama `resumen-para-whatsapp`,
+   12 de septiembre de 2026): botón «Compartir el resumen» en la pestaña
+   Jornada, con la jornada ya puntuada. Ver «Decisiones». Comprobado en
+   `demo.html`: la imagen sale bien y en escritorio descarga el PNG. **Lo que
+   no se ha podido probar aquí es la hoja de compartir de Android**: al
+   fusionar, abrirlo en el móvil, pulsar el botón y ver que ofrece WhatsApp.
+   Cuando esté fusionado, pásalo a «Qué sabe hacer la web hoy» → Jornada.
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
    siempre en rojo** — lanza una excepción para revertir lo que crea; lo que vale
