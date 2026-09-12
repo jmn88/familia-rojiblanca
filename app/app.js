@@ -541,6 +541,7 @@ async function compartirResumen() {
       general: g.tabla || [],
       jornadasJugadas: new Set((g.detalle || []).map(x => x.numero)).size,
       nombre: nombreJug,
+      jugador: jug,
       fecha: `${fechaLarga(j.kickoff)} · ${hora(j.kickoff)}`
     });
     const como = await RESUMEN.compartir(blob, `familia-rojiblanca-jornada-${j.numero}.png`);
