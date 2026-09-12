@@ -86,6 +86,11 @@ navegador.
 - Al cerrarse se revelan todos los onces, con **a qué hora envió cada uno** su
   alineación y, si la retocó, cuándo fue el último cambio.
 - Con el once oficial puesto: aciertos, puntos y clasificación del día.
+- **Compartir el resumen**: con la jornada puntuada, un botón genera una imagen
+  para el grupo de WhatsApp (ganador, clasificación del día con la barra de
+  aciertos y a quién falló cada uno, la general con flechas de quién sube y
+  baja, y el once sobre el campo). En el móvil abre la hoja de compartir; en
+  el ordenador descarga el PNG. Ver «Decisiones».
 - Solo se listan las jornadas ya cerradas y el próximo partido.
 
 ### General
@@ -217,6 +222,13 @@ navegador.
   caduca a los pocos segundos del toque, y una consulta lenta lo tiraría a la
   descarga.
 - Sin hoja de compartir (ordenador) se descarga el PNG y se avisa.
+- **Casi cuadrada, a dos columnas** (decisión del usuario, 12 de septiembre de
+  2026): la primera versión era una columna de 1080 × 3000 y WhatsApp la
+  enseñaba recortada en el chat hasta abrirla. Ahora va a 1440 de ancho con la
+  jornada y la general lado a lado y el campo apaisado debajo (~1,2 de alto por
+  cada 1 de ancho). Si añades algo, que no vuelva a estirarse.
+- **Los emojis los pinta el sistema**: en Windows salen distintos que en
+  Android, y da igual, porque la imagen se genera en el móvil de quien pulsa.
 
 ### Las solicitudes para entrar (issue #11)
 - **Una solicitud NO es un participante.** Vive en su propia tabla
@@ -605,6 +617,11 @@ septiembre de 2026): modo oscuro completo, foco que no se pierde, botones que
 no se pulsan dos veces, tamaño de los toques. Comprobado descargando la web
 publicada: `app.js` idéntico byte a byte al del repositorio.
 
+**El resumen para WhatsApp está en producción** (PR #20 y #21, 12 de
+septiembre de 2026) y **estrenado de verdad**: el usuario lo compartió desde su
+Android y la hoja de compartir funcionó. De ahí salió el cambio de forma que
+está pendiente.
+
 **El mercado de septiembre de 2026 se cierra con la rama
 `bajas-sin-borrar-historia`** (2 de septiembre de 2026), pendiente de PR. Antes
 de dar de baja a Oso hubo que arreglar que `api_estado` escondía a los jugadores
@@ -612,13 +629,10 @@ inactivos: ver la trampa de las bajas, más arriba.
 
 ## Pendiente
 
-0. **PR «Resumen para WhatsApp» sin fusionar** (rama `resumen-para-whatsapp`,
-   12 de septiembre de 2026): botón «Compartir el resumen» en la pestaña
-   Jornada, con la jornada ya puntuada. Ver «Decisiones». Comprobado en
-   `demo.html`: la imagen sale bien y en escritorio descarga el PNG. **Lo que
-   no se ha podido probar aquí es la hoja de compartir de Android**: al
-   fusionar, abrirlo en el móvil, pulsar el botón y ver que ofrece WhatsApp.
-   Cuando esté fusionado, pásalo a «Qué sabe hacer la web hoy» → Jornada.
+0. **PR «Resumen casi cuadrado» sin fusionar** (rama `resumen-cuadrado`, 12 de
+   septiembre de 2026): la nueva disposición a dos columnas del resumen para
+   WhatsApp. Ver «Decisiones». Comprobado en `demo.html`. Al fusionar, mirar en
+   el móvil que se ve entera en el chat sin abrirla.
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
    siempre en rojo** — lanza una excepción para revertir lo que crea; lo que vale
