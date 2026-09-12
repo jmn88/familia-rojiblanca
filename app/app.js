@@ -26,7 +26,9 @@ const S = {
   onceIntento:   null,  // cuándo miró el robot por última vez, y qué encontró
   onceMotivo:    null,
   adminEditando: null,
-  lecturaFoto: null   // lo que ha salido de leer la foto de la convocatoria
+  lecturaFoto: null,  // lo que ha salido de leer la foto de la convocatoria
+  jornadaDatos: null, // lo último que devolvió api_jornada en la pestaña Jornada
+  generalPromesa: null // la general, pedida por adelantado para el resumen
 };
 
 const POSICIONES = [["POR", "Porteros"], ["DEF", "Defensas"], ["MED", "Centrocampistas"], ["DEL", "Delanteros"]];
@@ -468,6 +470,7 @@ async function pintarJornada() {
 
   const d = await API.rpc("api_jornada", { p_jornada: S.jornadaVer, p_token: S.token });
   if (!d.ok) { v.innerHTML = `<div class="tarjeta">${aviso(d.error, "error")}</div>`; return; }
+  S.jornadaDatos = d;
 
   const j = d.jornada;
   const filas = d.filas || [];
@@ -511,10 +514,42 @@ async function pintarJornada() {
       </table></div>
       <h3>Once inicial del Sevilla</h3>
       <ul class="once-lista">${j.once_oficial.map(id => `<li class="acierto">${esc(nombreJug(id))}</li>`).join("")}</ul>
+      <p style="margin:18px 0 0"><button class="principal" id="btn-resumen">Compartir el resumen</button></p>
+      <p class="cuando" style="margin-top:6px">Una imagen con la clasificación del día, lo que falló cada uno y la general, lista para el grupo de WhatsApp.</p>
+      <div id="msg-resumen" aria-live="polite"></div>
     </div>` + onces(conPuntos, j.once_oficial, yo);
+    // la general se pide ya, sin esperar, para que el resumen salga al instante
+    S.generalPromesa = API.rpc("api_general", {});
   }
 
   v.innerHTML = `<div class="tarjeta"><label for="sel-jornada">Jornada</label>${selector}</div>` + cuerpo;
+}
+
+/* La imagen del resumen para WhatsApp. En el móvil abre la hoja de compartir
+   del sistema; en el ordenador descarga el PNG. Lo que hace falta ya está
+   cargado (api_jornada) o pedido por adelantado (api_general), así que no hay
+   espera que pueda caducar el permiso de compartir del navegador. */
+async function compartirResumen() {
+  const caja = $("#msg-resumen");
+  const d = S.jornadaDatos;
+  const g = await (S.generalPromesa || API.rpc("api_general", {}));
+  const j = d.jornada;
+  try {
+    const blob = await RESUMEN.imagen({
+      jornada: j,
+      filas: d.filas || [],
+      general: g.tabla || [],
+      jornadasJugadas: new Set((g.detalle || []).map(x => x.numero)).size,
+      nombre: nombreJug,
+      fecha: `${fechaLarga(j.kickoff)} · ${hora(j.kickoff)}`
+    });
+    const como = await RESUMEN.compartir(blob, `familia-rojiblanca-jornada-${j.numero}.png`);
+    caja.innerHTML = como === "descargado"
+      ? aviso("Imagen descargada. Está en tu carpeta de descargas, lista para mandarla al grupo.", "ok")
+      : "";
+  } catch (e) {
+    caja.innerHTML = aviso(`No se ha podido generar la imagen: ${e.message}`, "error");
+  }
 }
 
 // ¿la retocó después de enviarla? Se deja un minuto de margen, que guardar
@@ -949,6 +984,7 @@ document.addEventListener("click", async ev => {
     }
 
     if (t.id === "btn-entrar")  { await conBoton(t, entrar); return; }
+    if (t.id === "btn-resumen") { await conBoton(t, compartirResumen); return; }
     if (t.id === "btn-guardar") { await guardarAlineacion(); return; }
 
     // --- pedir entrar en la porra ---
