@@ -23,9 +23,14 @@
 # no revela nada hasta la hora).
 #
 # La imagen la dibuja el propio app/resumen.js de la web, abierto en el Chrome
-# sin ventana que traen las maquinas de GitHub (robot/resumen_imagen.py). Si
-# por lo que sea no se puede dibujar, el correo sale igual, sin imagen, y el
-# paso lo canta en amarillo.
+# sin ventana que traen las maquinas de GitHub (robot/resumen_imagen.py), en
+# JPEG a 900 px (~100 KB; el PNG de la web pesa 700). Va A LA VISTA dentro del
+# correo, no como adjunto: como Brevo no admite imagenes incrustadas por su
+# API y Gmail no ensena las que van metidas en el HTML, se sube a la rama
+# «resumenes» de este mismo repositorio (una carpeta publica, sin tocar main)
+# y el correo la enlaza desde raw.githubusercontent.com. Si la subida fallara,
+# va como adjunto; y si ni siquiera se puede dibujar, el correo sale sin ella.
+# En los dos casos el paso lo canta en amarillo.
 #
 # OJO CON LOS REGISTROS: la respuesta de la base de datos lleva los correos en
 # claro, y los registros de Actions de un repositorio publico los lee
@@ -55,6 +60,12 @@ on:
 concurrency:
   group: robot-resultados
   cancel-in-progress: false
+
+# Para poder subir la imagen a la rama «resumenes» con el token que GitHub da
+# a cada ejecucion (no hace falta ningun secret). Un push hecho con ese token
+# no dispara otros procesos, asi que no hay efectos en cadena.
+permissions:
+  contents: write
 
 jobs:
   mandar:
@@ -129,23 +140,76 @@ jobs:
           # Las fuentes de la imagen: Roboto (la de la web en Android) y los
           # emojis a color. Sin ellas Chrome pintaria cuadrados en las medallas.
           sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends fonts-roboto fonts-noto-color-emoji || true
-          if python3 robot/resumen_imagen.py resumen.png < pendientes.json; then
-            echo "Imagen dibujada: $(stat -c %s resumen.png) bytes"
+          # JPEG a 900 px y calidad 0,75: unos 100 KB, que para un correo es lo
+          # suyo (el PNG entero de la web pesa 700).
+          if python3 robot/resumen_imagen.py resumen.jpg --formato jpeg --calidad 0.75 --ancho 900 < pendientes.json; then
+            echo "Imagen dibujada: $(stat -c %s resumen.jpg) bytes"
           else
             echo "::warning::No se ha podido dibujar la imagen del resumen; el correo sale sin ella."
-            rm -f resumen.png
+            rm -f resumen.jpg
           fi
+
+      # La imagen tiene que estar en una direccion publica para verse dentro
+      # del correo. Se guarda en la rama «resumenes» de este repositorio, que
+      # es solo eso: una carpeta con un JPEG por jornada. main no se toca.
+      - name: Publicar la imagen para que se vea en el correo
+        id: imagen
+        if: steps.pendientes.outputs.hay != '0'
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          echo "url=" >> "$GITHUB_OUTPUT"
+          if [ ! -s resumen.jpg ]; then
+            echo "No hay imagen que publicar."
+            exit 0
+          fi
+
+          NUMERO=$(python3 -c "import json; print(json.load(open('pendientes.json'))['jornada']['numero'])")
+          NOMBRE="jornada-$NUMERO.jpg"
+          REMOTO="https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/resumenes/${NOMBRE}"
+
+          # la rama, si ya existe; si no, se crea vacia
+          if ! git clone -q --depth 1 --branch resumenes "$REMOTO" imagenes 2>/dev/null; then
+            mkdir -p imagenes
+            git -C imagenes init -q -b resumenes
+            git -C imagenes remote add origin "$REMOTO"
+            echo "Imagenes del resumen de cada jornada, para el correo de resultados. Las sube sola resultados.yml." > imagenes/LEEME.txt
+          fi
+          cp resumen.jpg "imagenes/$NOMBRE"
+          git -C imagenes add -A
+          if git -C imagenes -c user.name="Familia Rojiblanca" -c user.email="robot@familia-rojiblanca" commit -q -m "Resumen de la jornada $NUMERO" > /dev/null; then
+            if ! git -C imagenes push -q origin resumenes; then
+              echo "::warning::No se ha podido subir la imagen a la rama resumenes; va como adjunto."
+              exit 0
+            fi
+          else
+            echo "La imagen de la jornada $NUMERO ya estaba subida tal cual."
+          fi
+
+          # Y se comprueba que se sirve, que si no el correo saldria con un hueco.
+          for i in 1 2 3 4 5 6; do
+            if curl -sfI "$URL" > /dev/null; then
+              echo "Imagen publicada en $URL"
+              echo "url=$URL" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::La imagen se ha subido pero $URL no responde todavia; va como adjunto."
 
       - name: Mandar los correos
         if: steps.pendientes.outputs.hay != '0'
         env:
           PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+          IMAGEN_URL: ${{ steps.imagen.outputs.url }}
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           BREVO_REMITENTE: ${{ secrets.BREVO_REMITENTE }}
         run: |
           set -euo pipefail
 
-          python3 robot/resultados.py --imagen resumen.png < pendientes.json > resultado.json
+          python3 robot/resultados.py --imagen-url "$IMAGEN_URL" --imagen resumen.jpg < pendientes.json > resultado.json
           cat resultado.json          # este si: solo lleva nombres
 
           leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
@@ -164,7 +228,7 @@ jobs:
             {
               echo "## Resultados de la jornada $(leer jornada) mandados$([ "$(leer prueba)" = "True" ] && echo ' (PRUEBA)')"
               echo ""
-              echo "Con imagen: $(leer con_imagen)"
+              echo "Imagen: $(leer imagen)"
               echo ""
               python3 -c "import json; [print('- '+n) for n in json.load(open('resultado.json'))['nombres']]"
             } >> "$GITHUB_STEP_SUMMARY"

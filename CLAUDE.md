@@ -330,8 +330,23 @@ navegador.
     jornada ya jugada devuelve solo al administrador (`config.admin_participante`)
     y `prueba: true`; el workflow no apunta nada. Es el botón *Run workflow* con
     la casilla rellena.
-  - Si la imagen no se puede dibujar, el correo sale igual sin ella (aviso
-    amarillo en Actions): mejor sin foto que sin correo.
+  - **La imagen va a la vista, enlazada desde la rama `resumenes`** (13 de
+    septiembre de 2026, a petición del usuario: la primera versión la adjuntaba).
+    Brevo no admite imágenes incrustadas por su API (confirmado en su
+    documentación y en la de Anymail), y Gmail no enseña las metidas en el HTML
+    como `data:`; así que `resultados.yml` sube el JPEG a la rama `resumenes`
+    del propio repositorio (una carpeta pública con `jornada-N.jpg`, sin tocar
+    `main`, con el `github.token` de la ejecución y `permissions: contents:
+    write`) y el correo la enlaza desde `raw.githubusercontent.com`. Un push
+    con ese token no dispara otros procesos. Si la subida falla o la dirección
+    no responde en un minuto, va como adjunto; si ni se puede dibujar, sin
+    imagen. Mejor sin foto que sin correo.
+  - **JPEG a 900 px y calidad 0,75 (~100 KB)** en vez del PNG de 1440 (700 KB),
+    también a petición del usuario. Medido con la jornada 5: PNG 682 KB; JPEG
+    1440 q0,8 216 KB; 1080 q0,8 147 KB; 900 q0,75 103 KB; 800 q0,7 81 KB; WebP
+    1080 q0,7 62 KB. WebP se descartó porque Outlook de escritorio no lo
+    muestra. `robot/resumen_imagen.py --formato jpeg --calidad 0.75 --ancho 900`;
+    el PNG de la web no cambia.
 
 ## Los robots
 
@@ -437,7 +452,7 @@ robot/once.py         busca el once inicial en la web del club (publicarlo lo de
 robot/horario.py      lee el calendario del club y saca el horario oficial
 robot/avisos.py       manda por Brevo los recordatorios que decide SQL
 robot/resultados.py   manda el correo de resultados (reutiliza avisos.py); --esperar dice cuánto falta al cierre
-robot/resumen_imagen.py  dibuja la imagen del resumen con app/resumen.js en un Chrome sin ventana
+robot/resumen_imagen.py  dibuja la imagen del resumen con app/resumen.js en un Chrome sin ventana (--formato/--calidad/--ancho)
 robot/solicitudes.py  avisa al administrador de quien ha pedido entrar
 robot/orden_sql.py    arma la orden de SQL, ya escapada, que guarda el resultado
 robot/resumen_horario.py  el resumen del calendario que sale en Actions
@@ -706,11 +721,13 @@ inactivos: ver la trampa de las bajas, más arriba.
    hay PostgreSQL; lleva las comprobaciones nuevas del robot y del correo), las
    fuentes en Linux (`fonts-roboto` y `fonts-noto-color-emoji` se instalan en
    el paso; si el emoji saliera como cuadrado, es eso), y un envío de verdad.
-   **Queda**: pasar la autoprueba; lanzar *Resultados por correo* a mano con
-   «5» en la casilla (correo solo a Jesús, no apunta nada) y mirar que llega
-   con la imagen — el primer intento falló por lanzarse antes de que acabara de
-   aplicarse el SQL (ver «Trampas»), no por el código; la primera jornada de
-   verdad es la 6 (Deportivo, 16 de septiembre a las 19:00). Las jornadas 1 a 5 no reciben correo
+   **El correo de prueba llegó** (13 de septiembre de 2026, jornada 5, con la
+   imagen bien dibujada en Linux: fuentes y emojis correctos). De ahí salió el
+   PR «Resumen en el correo» (rama `resumen-en-el-correo`): imagen a la vista
+   y en JPEG ligero, en vez de PNG adjunto. **Queda**: pasar la autoprueba; al
+   fusionar ese PR, repetir la prueba con «5» y ver que la imagen sale dentro
+   del correo y que aparece la rama `resumenes` con `jornada-5.jpg`; la primera
+   jornada de verdad es la 6 (Deportivo, 16 de septiembre a las 19:00). Las jornadas 1 a 5 no reciben correo
    (`resultados_desde`).
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina

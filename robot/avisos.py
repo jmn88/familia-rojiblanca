@@ -173,15 +173,16 @@ def sin_correos(texto):
     return re.sub(r"[^\s\"'<>]+@[^\s\"'<>]+", "***@***", texto or "")
 
 
-def mandar(clave, remitente, destino, nombre, asunto, texto, adjuntos=None):
+def mandar(clave, remitente, destino, nombre, asunto, texto, adjuntos=None, html=None):
     """Un correo por Brevo. Los adjuntos van como [{"name": ..., "content": base64}]
-    (los usa el correo de resultados para la imagen del resumen)."""
+    y html, si se da, sustituye a la version HTML que se saca sola del texto
+    (el correo de resultados lo usa para meter la imagen del resumen)."""
     mensaje = {
         "sender":      {"name": DE, "email": remitente},
         "to":          [{"email": destino, "name": nombre}],
         "subject":     asunto,
         "textContent": texto,
-        "htmlContent": como_html(texto),
+        "htmlContent": html or como_html(texto),
     }
     if adjuntos:
         mensaje["attachment"] = adjuntos

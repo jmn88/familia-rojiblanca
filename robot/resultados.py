@@ -13,7 +13,12 @@ correo descifrado. Reutiliza de robot/avisos.py el envio por Brevo y los trozos
 de texto. Por la salida escupe lo hecho en JSON y SIN correos, solo nombres:
 los registros de GitHub los lee cualquiera.
 
-    python robot/resultados.py [--imagen resumen.png] < pendientes.json
+    python robot/resultados.py [--imagen-url https://…/jornada-6.jpg | --imagen resumen.jpg] < pendientes.json
+
+La imagen va DENTRO del correo, enlazada desde una direccion publica
+(--imagen-url): Brevo no admite imagenes incrustadas por su API, y una imagen
+metida en el HTML como texto Gmail no la ensena. Si no hay direccion pero si
+fichero (--imagen), va como adjunto, que es el plan B.
 
 Con --esperar no manda nada: imprime cuantos segundos faltan para que se cierre
 el plazo por el reloj (0 si ya esta cerrado o no hay jornada). El correo lleva
@@ -68,7 +73,12 @@ def mi_resultado(f, filas, once, nombre):
     return lineas
 
 
-def mensaje(a, datos, hoy, con_imagen):
+# Donde va la imagen dentro del texto; en la version HTML esa linea se cambia
+# por la imagen misma.
+MARCA_IMAGEN = "[[IMAGEN]]"
+
+
+def mensaje(a, datos, hoy, con_imagen, imagen_url=None):
     j = datos["jornada"]
     partido = partido_de(j)
     once = j.get("once_oficial") or []
@@ -85,9 +95,10 @@ def mensaje(a, datos, hoy, con_imagen):
         "",
         "Ya está puntuada la jornada %d, %s, que se juega %s."
         % (j["numero"], partido, cuando(j["kickoff_local"], hoy)),
-        "",
-        "TU RESULTADO",
-    ] + mi_resultado(yo, filas, once, nombre)
+    ]
+    if imagen_url:
+        lineas += ["", MARCA_IMAGEN]
+    lineas += ["", "TU RESULTADO"] + mi_resultado(yo, filas, once, nombre)
 
     lineas += ["", "ONCE INICIAL DEL SEVILLA"]
     lineas += ["  %2s  %s" % (dorsal(x), x["nombre"]) for x in datos.get("once") or []]
@@ -118,7 +129,7 @@ def mensaje(a, datos, hoy, con_imagen):
     if len(general) > TOPE_GENERAL:
         lineas.append("  … y %d más." % (len(general) - TOPE_GENERAL))
 
-    if con_imagen:
+    if con_imagen and not imagen_url:
         lineas += ["", "Va adjunta la imagen con el resumen de la jornada, por si la quieres "
                        "mandar al grupo."]
 
@@ -127,7 +138,16 @@ def mensaje(a, datos, hoy, con_imagen):
                "dejar de recibirlos, entra en la web, ve a «Mi alineación» y apágalos abajo "
                "del todo."]
 
-    return ("Resultados · Jornada %d · %s" % (j["numero"], partido)), "\n".join(lineas)
+    texto = "\n".join(lineas)
+    html = None
+    if imagen_url:
+        # en texto plano, la direccion; en HTML, la imagen a la vista
+        html = avisos.como_html(texto).replace(MARCA_IMAGEN,
+            '<img src="%s" alt="Resumen de la jornada %d" width="600" '
+            'style="display:block;max-width:100%%;height:auto;border-radius:12px">'
+            % (imagen_url, j["numero"]))
+        texto = texto.replace(MARCA_IMAGEN, "El resumen de la jornada, en imagen:\n" + imagen_url)
+    return ("Resultados · Jornada %d · %s" % (j["numero"], partido)), texto, html
 
 
 # ------------------------------------------------------------- esperar ---
@@ -176,20 +196,25 @@ def main():
               "BREVO_API_KEY y/o BREVO_REMITENTE. Esta explicado en el README." % len(pendientes))
         raise SystemExit(1)
 
-    # la imagen del resumen, si el paso anterior la ha podido dibujar
+    # La imagen del resumen: a la vista si esta publicada en una direccion, y
+    # si no, adjunta (si el paso anterior la ha podido dibujar).
+    imagen_url = None
     adjuntos = None
-    if "--imagen" in sys.argv:
+    if "--imagen-url" in sys.argv:
+        imagen_url = sys.argv[sys.argv.index("--imagen-url") + 1].strip() or None
+    if not imagen_url and "--imagen" in sys.argv:
         ruta = sys.argv[sys.argv.index("--imagen") + 1]
         if os.path.isfile(ruta) and os.path.getsize(ruta) > 0:
             with open(ruta, "rb") as f:
-                adjuntos = [{"name": "familia-rojiblanca-jornada-%d.png" % jornada["numero"],
+                adjuntos = [{"name": "familia-rojiblanca-jornada-%d%s"
+                                     % (jornada["numero"], os.path.splitext(ruta)[1] or ".jpg"),
                              "content": base64.b64encode(f.read()).decode("ascii")}]
 
     enviados, nombres, fallos = [], [], []
     for a in pendientes:
-        asunto, texto = mensaje(a, datos, datos.get("hoy"), bool(adjuntos))
+        asunto, texto, html = mensaje(a, datos, datos.get("hoy"), bool(adjuntos), imagen_url)
         try:
-            avisos.mandar(clave, remitente, a["email"], a["nombre"], asunto, texto, adjuntos)
+            avisos.mandar(clave, remitente, a["email"], a["nombre"], asunto, texto, adjuntos, html)
             enviados.append({"participante_id": int(a["participante_id"]), "tipo": "resultado"})
             nombres.append(a["nombre"])
         except urllib.error.HTTPError as e:
@@ -203,7 +228,8 @@ def main():
     salir({"ok": bool(enviados),
            "prueba": bool(datos.get("prueba")),
            "jornada_id": jornada["id"], "jornada": jornada["numero"],
-           "con_imagen": bool(adjuntos),
+           "con_imagen": bool(adjuntos or imagen_url),
+           "imagen": "enlazada" if imagen_url else "adjunta" if adjuntos else "sin imagen",
            "enviados": enviados, "nombres": nombres,
            "n_enviados": len(enviados), "n_fallos": len(fallos), "fallos": fallos,
            "motivo": "" if enviados else "no ha salido ningun correo"})

@@ -13,10 +13,13 @@ al cargar pinta el lienzo y deja el PNG (en base64) en el cuerpo de la pagina;
 Chrome, con --dump-dom, imprime esa pagina ya ejecutada; y de ahi se saca el
 PNG. Sin servidor, sin librerias, sin Node.
 
-Lee por la entrada lo que devuelve robot_resultados_pendientes() y escribe el
-PNG en el fichero que se le diga:
+Lee por la entrada lo que devuelve robot_resultados_pendientes() y escribe la
+imagen en el fichero que se le diga. Por defecto es el PNG a tamano completo
+(el mismo fichero que la web); para el correo se pide JPEG y mas estrecho, que
+pesa una decima parte:
 
     python robot/resumen_imagen.py resumen.png < pendientes.json
+    python robot/resumen_imagen.py resumen.jpg --formato jpeg --calidad 0.8 --ancho 1080 < pendientes.json
 
 Si no encuentra Chrome (variable CHROME o los nombres de siempre), o Chrome no
 devuelve la imagen, acaba con error y sin fichero: el correo sale igual, solo
@@ -63,9 +66,20 @@ PAGINA = """<!doctype html>
     nombre, jugador,
     fecha: D.fecha
   });
+  // A la anchura que se pida, y en el formato que se pida (JPEG para el
+  // correo: pesa una fraccion del PNG).
+  let final = lienzo;
+  if (D.ancho && D.ancho < lienzo.width) {
+    final = document.createElement("canvas");
+    final.width = D.ancho;
+    final.height = Math.round(lienzo.height * D.ancho / lienzo.width);
+    const x = final.getContext("2d");
+    x.imageSmoothingQuality = "high";
+    x.drawImage(lienzo, 0, 0, final.width, final.height);
+  }
   const pre = document.createElement("pre");
-  pre.id = "png";
-  pre.textContent = lienzo.toDataURL("image/png");
+  pre.id = "imagen";
+  pre.textContent = final.toDataURL(D.formato, D.calidad);
   document.body.appendChild(pre);
 </script>
 </body>
@@ -97,7 +111,7 @@ def como_url(ruta):
     return "file:///" + ruta.lstrip("/")
 
 
-def dibujar(datos, destino):
+def dibujar(datos, destino, formato="png", calidad=0.85, ancho=None):
     navegador = chrome()
     if not navegador:
         raise RuntimeError("no encuentro Chrome (pon la ruta en la variable CHROME)")
@@ -112,6 +126,9 @@ def dibujar(datos, destino):
             "jornadas_jugadas": datos.get("jornadas_jugadas") or 0,
             "jugadores": datos.get("jugadores") or [],
             "fecha": fecha_de(j["kickoff_local"]),
+            "formato": "image/" + formato,
+            "calidad": calidad,
+            "ancho": ancho,
         }, ensure_ascii=False).replace("</", "<\\/"),
     }
 
@@ -133,7 +150,7 @@ def dibujar(datos, destino):
         ]
         salida = subprocess.run(orden, capture_output=True, timeout=120)
         dom = salida.stdout.decode("utf-8", "replace")
-        m = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", dom)
+        m = re.search(r"data:image/[a-z]+;base64,([A-Za-z0-9+/=]+)", dom)
         if not m:
             detalle = salida.stderr.decode("utf-8", "replace").strip().splitlines()[-3:]
             raise RuntimeError("Chrome no ha devuelto la imagen (salida %d): %s"
@@ -147,15 +164,24 @@ def dibujar(datos, destino):
         shutil.rmtree(carpeta, ignore_errors=True)
 
 
+def opcion(nombre, por_defecto):
+    if nombre in sys.argv:
+        return sys.argv[sys.argv.index(nombre) + 1]
+    return por_defecto
+
+
 def main():
     sys.stdin.reconfigure(encoding="utf-8")
     if len(sys.argv) < 2:
-        raise SystemExit("uso: resumen_imagen.py <fichero.png> < pendientes.json")
+        raise SystemExit("uso: resumen_imagen.py <fichero> [--formato jpeg] [--calidad 0.85] [--ancho 1080] < pendientes.json")
     datos = json.load(sys.stdin)
     if not datos.get("jornada"):
         raise SystemExit("no hay jornada de la que dibujar el resumen")
     try:
-        n = dibujar(datos, sys.argv[1])
+        n = dibujar(datos, sys.argv[1],
+                    formato=opcion("--formato", "png"),
+                    calidad=float(opcion("--calidad", "0.85")),
+                    ancho=int(opcion("--ancho", "0")) or None)
     except Exception as e:
         print("No se ha podido dibujar el resumen: %s" % e, file=sys.stderr)
         raise SystemExit(1)

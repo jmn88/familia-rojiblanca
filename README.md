@@ -315,9 +315,12 @@ La web escribe a quien quiera, y solo por tres motivos:
   sin enviar nada.
 - **«Resultados»**, en cuanto se conoce el once inicial y se cierra el plazo.
   Lleva el once del Sevilla, tu alineación con los aciertos marcados, tus puntos
-  y tu puesto, la clasificación de la jornada y la general, y **adjunta la
-  imagen del resumen** —la misma que se comparte por WhatsApp desde la web—.
-  Como el once suele saberse antes de la hora de cierre y el correo enseña las
+  y tu puesto, la clasificación de la jornada y la general, y **la imagen del
+  resumen a la vista** —la misma que se comparte por WhatsApp desde la web, en
+  JPEG ligero (~100 KB)—. Para que se vea dentro del correo, la imagen se
+  guarda en la rama `resumenes` del repositorio (una carpeta pública con un
+  JPEG por jornada; `main` no se toca) y el correo la enlaza desde ahí. Como el
+  once suele saberse antes de la hora de cierre y el correo enseña las
   alineaciones de todos, espera a que se cierre el plazo, igual que la web.
 
 Uno de cada clase por persona y jornada, y nada más. Si a alguien le tocaran la
@@ -433,7 +436,7 @@ robot/once.py         busca el once inicial en la web del club (lo publica SQL)
 robot/horario.py      lee el calendario del club y trae la hora oficial
 robot/avisos.py       manda los recordatorios de alineación por correo
 robot/resultados.py   manda el correo de resultados, con la imagen adjunta
-robot/resumen_imagen.py  dibuja la imagen del resumen con app/resumen.js y un Chrome sin ventana
+robot/resumen_imagen.py  dibuja la imagen del resumen con app/resumen.js y un Chrome sin ventana (PNG o JPEG)
 robot/solicitudes.py  avisa al administrador de quien ha pedido entrar
 robot/orden_sql.py    arma la orden de SQL que guarda lo que han encontrado
 robot/resumen_horario.py  el resumen del calendario que sale en Actions
