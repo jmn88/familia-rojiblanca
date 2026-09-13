@@ -80,8 +80,13 @@ begin
 end $$;
 
 -- ------------------------------------------------------- el once inicial ---
--- Aqui el robot NO decide: propone. El once oficial es lo que reparte los
--- puntos, asi que lo confirma el administrador desde Admin, de un toque.
+-- El robot PUBLICA el once que lee en la web del club, y con el se reparten
+-- los puntos en el acto. Empezo proponiendolo para que lo confirmara una
+-- persona; tras cinco jornadas sin un solo fallo, el administrador decidio en
+-- septiembre de 2026 que fuera solo. Queda una unica salvaguarda: si el once
+-- leido lleva a alguien fuera de la convocatoria (que tambien la lee un robot,
+-- y puede estar mal), NO se publica: se queda como propuesta y lo resuelve el
+-- administrador desde Admin, como antes.
 
 create or replace function robot_pendiente_once()
 returns json language sql stable security definer
@@ -93,7 +98,7 @@ set search_path = public, extensions, pg_temp as $$
                                'en_casa', en_casa, 'kickoff', kickoff)
         from jornadas
        where once_oficial is null                       -- aun sin puntuar
-         and once_propuesto is null                     -- y sin propuesta esperando
+         and once_propuesto is null                     -- y sin propuesta esperando al administrador
          -- Se contesta que si desde TRES horas antes, aunque el once no salga
          -- hasta hora y media antes. No es que se busque tan pronto: es que el
          -- robot se queda esperando dentro de la misma ejecucion, y cuanto mas
@@ -113,16 +118,18 @@ $$;
 create or replace function robot_once(p_jornada int, p_jugadores int[], p_fuente text)
 returns json language plpgsql security definer
 set search_path = public, extensions, pg_temp as $$
-declare j jornadas; n int;
+declare j jornadas; n int; v_fuera text;
 begin
   select * into j from jornadas where id = p_jornada;
   if not found then return json_build_object('ok', false, 'error', 'Jornada no encontrada'); end if;
 
+  -- Nunca pisa lo que haya puesto una persona, ni una propuesta que este
+  -- esperando a que el administrador la resuelva.
   if j.once_oficial is not null then
     return json_build_object('ok', false, 'error', 'Esa jornada ya tiene once oficial: no se toca');
   end if;
   if j.once_propuesto is not null then
-    return json_build_object('ok', false, 'error', 'Ya habia una propuesta esperando');
+    return json_build_object('ok', false, 'error', 'Ya habia una propuesta esperando al administrador');
   end if;
 
   if coalesce(array_length(p_jugadores, 1), 0) <> 11 then
@@ -133,11 +140,34 @@ begin
   select count(*) into n from jugadores where id = any(p_jugadores);
   if n <> 11 then return json_build_object('ok', false, 'error', 'Algun jugador no existe'); end if;
 
+  -- La salvaguarda: con convocatoria cargada, el once tiene que salir de ella
+  -- (es la misma regla que api_admin_once). Si no cuadra, lo mas probable es
+  -- que la convocatoria este mal leida, y eso lo corrige una persona: se deja
+  -- PROPUESTO, con el motivo a la vista en Admin, y no se puntua nada.
+  if j.convocatoria is not null then
+    select string_agg(g.nombre, ', ' order by g.nombre) into v_fuera
+      from jugadores g
+     where g.id = any(p_jugadores) and not (g.id = any(j.convocatoria));
+    if v_fuera is not null then
+      update jornadas
+         set once_propuesto = p_jugadores, once_propuesto_en = now(),
+             once_propuesto_fuente = p_fuente,
+             once_robot_intento = now(),
+             once_robot_motivo  = left('Leido el once, pero no esta en la convocatoria: ' || v_fuera
+                                       || '. Corrige la convocatoria o marca el once a mano.', 300)
+       where id = p_jornada;
+      return json_build_object('ok', true, 'jornada', j.numero, 'publicado', false,
+                               'propuesto', true, 'fuera', v_fuera);
+    end if;
+  end if;
+
   update jornadas
-     set once_propuesto = p_jugadores, once_propuesto_en = now(), once_propuesto_fuente = p_fuente
+     set once_oficial = p_jugadores, publicada_en = now(),
+         once_propuesto = null, once_propuesto_en = null, once_propuesto_fuente = null,
+         once_robot_intento = now(), once_robot_motivo = null
    where id = p_jornada;
 
-  return json_build_object('ok', true, 'jornada', j.numero, 'propuesto', true);
+  return json_build_object('ok', true, 'jornada', j.numero, 'publicado', true, 'propuesto', false);
 end $$;
 
 -- Deja constancia de cada intento fallido, para que en Admin se pueda ver si el

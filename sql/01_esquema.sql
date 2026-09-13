@@ -132,11 +132,13 @@ begin
   end if;
 end $$;
 
-do $$ begin
-  alter table recordatorios add constraint recordatorios_tipo
-    check (tipo in ('alineacion', 'convocatoria'));
-exception when duplicate_object then null;
-end $$;
+-- Tres clases de aviso: la convocatoria, la alineacion que falta y, desde
+-- septiembre de 2026, los resultados de la jornada. La restriccion se rehace
+-- entera en vez de crearse «si no existe», porque la antigua solo admitia dos
+-- valores y hay que ensancharla en las bases de datos que ya la tenian.
+alter table recordatorios drop constraint if exists recordatorios_tipo;
+alter table recordatorios add constraint recordatorios_tipo
+  check (tipo in ('alineacion', 'convocatoria', 'resultado'));
 
 -- Quien pide entrar en la porra desde la propia web. NO es un participante: lo
 -- sera cuando el administrador apruebe la solicitud, y solo entonces. Es a

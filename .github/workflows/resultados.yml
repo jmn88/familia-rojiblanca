@@ -1,0 +1,180 @@
+# El correo con los resultados de la jornada.
+#
+# En cuanto se conoce el once inicial (lo publique el robot o el administrador
+# a mano) y el plazo se cierra por el reloj, a cada participante con avisos le
+# llega un correo con el once del Sevilla, sus aciertos, sus puntos y su
+# puesto, la clasificacion del dia y la general, y la imagen del resumen (la
+# misma que se comparte por WhatsApp desde la web) adjunta.
+#
+# Se lanza de tres maneras:
+#   - al terminar «Cargar el once inicial» (workflow_run): es el camino normal,
+#     y asi el correo sale a los minutos de publicarse el once, sin esperar a
+#     que GitHub tenga a bien lanzar la siguiente pasada del cron;
+#   - cada cuarto de hora (cron), por si el once lo marca el administrador a
+#     mano o algun correo se quedo sin salir;
+#   - a mano, con Run workflow. Si se le da el numero de una jornada ya jugada,
+#     es una PRUEBA: el correo va solo al administrador y no se apunta nada.
+#
+# Quien decide a quien hay que escribir es la base de datos
+# (robot_resultados_pendientes): un correo por persona y jornada, apuntado en
+# cuanto sale. Como el once suele conocerse ANTES de la hora de cierre y el
+# correo lleva las alineaciones de todos, si el plazo aun no se ha cerrado la
+# ejecucion se queda esperando a que se cierre (es lo mismo que hace la web:
+# no revela nada hasta la hora).
+#
+# La imagen la dibuja el propio app/resumen.js de la web, abierto en el Chrome
+# sin ventana que traen las maquinas de GitHub (robot/resumen_imagen.py). Si
+# por lo que sea no se puede dibujar, el correo sale igual, sin imagen, y el
+# paso lo canta en amarillo.
+#
+# OJO CON LOS REGISTROS: la respuesta de la base de datos lleva los correos en
+# claro, y los registros de Actions de un repositorio publico los lee
+# cualquiera. Por eso ese fichero NO se imprime nunca. Lo que si se imprime es
+# la salida de robot/resultados.py, que solo lleva nombres.
+#
+# Necesita SUPABASE_DB_URL y los dos secrets de Brevo (BREVO_API_KEY y
+# BREVO_REMITENTE), los mismos que los demas avisos.
+
+name: Resultados por correo
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_run:
+    workflows: ["Cargar el once inicial"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      jornada:
+        description: "PRUEBA: numero de una jornada ya jugada. El correo va solo al administrador y no se apunta nada. Vacio = funcionamiento normal."
+        required: false
+        default: ""
+
+# grupo propio: no debe esperar detras del robot del once (que se queda horas
+# despierto) ni del de los avisos
+concurrency:
+  group: robot-resultados
+  cancel-in-progress: false
+
+jobs:
+  mandar:
+    runs-on: ubuntu-latest
+    # puede quedarse esperando a que se cierre el plazo (tope de dentro: 2 h)
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Asegurar el cliente de PostgreSQL
+        run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client)
+
+      - name: Ver si hay resultados que mandar (y esperar al cierre si hace falta)
+        id: pendientes
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+          PRUEBA: ${{ github.event.inputs.jornada }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PGCONN:-}" ]; then
+            echo "::error::Falta el secret SUPABASE_DB_URL. Esta explicado en el README."
+            exit 1
+          fi
+
+          # En modo prueba se pide una jornada concreta; si no, la base de
+          # datos decide cual toca.
+          if [ -n "${PRUEBA:-}" ]; then
+            PRUEBA=$(printf '%s' "$PRUEBA" | tr -cd '0-9')
+            if [ -z "$PRUEBA" ]; then
+              echo "::error::La jornada de prueba tiene que ser un numero."
+              exit 1
+            fi
+            CONSULTA="select robot_resultados_pendientes($PRUEBA);"
+            echo "MODO PRUEBA: jornada $PRUEBA, solo al administrador."
+          else
+            CONSULTA="select robot_resultados_pendientes();"
+          fi
+
+          TOPE=$(( $(date +%s) + 2 * 3600 ))
+          while true; do
+            # Este fichero lleva correos: no se imprime.
+            psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -c "$CONSULTA" > pendientes.json
+
+            ESPERA=$(python3 robot/resultados.py --esperar < pendientes.json)
+            if [ "$ESPERA" -le 0 ]; then
+              break
+            fi
+            if [ "$(date +%s)" -ge "$TOPE" ]; then
+              echo "El plazo sigue sin cerrarse y se acaba el tiempo de esta ejecucion; lo coge la siguiente."
+              break
+            fi
+            echo "El once ya se conoce, pero el plazo no se cierra hasta dentro de $ESPERA segundos: se espera."
+            sleep $(( ESPERA < 900 ? ESPERA : 900 ))
+          done
+
+          # ¿hay a quien escribir? Si no, aqui se acaba, sin dibujar nada.
+          N=$(python3 -c "import json; d=json.load(open('pendientes.json')); print(len(d.get('avisos') or []) if d.get('jornada') and d['jornada'].get('cerrada') else 0)")
+          echo "hay=$N" >> "$GITHUB_OUTPUT"
+          if [ "$N" = "0" ]; then
+            python3 robot/resultados.py < pendientes.json | tee resultado.json
+            echo "Sin mandar nada: $(python3 -c "import json; print(json.load(open('resultado.json')).get('motivo',''))")" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Solo cuando hay correos que mandar: instalar las fuentes y abrir Chrome
+      # cuesta medio minuto, y el cron pasa por aqui muchas veces al dia sin
+      # nada que hacer.
+      - name: Dibujar la imagen del resumen
+        if: steps.pendientes.outputs.hay != '0'
+        run: |
+          set -uo pipefail
+          # Las fuentes de la imagen: Roboto (la de la web en Android) y los
+          # emojis a color. Sin ellas Chrome pintaria cuadrados en las medallas.
+          sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends fonts-roboto fonts-noto-color-emoji || true
+          if python3 robot/resumen_imagen.py resumen.png < pendientes.json; then
+            echo "Imagen dibujada: $(stat -c %s resumen.png) bytes"
+          else
+            echo "::warning::No se ha podido dibujar la imagen del resumen; el correo sale sin ella."
+            rm -f resumen.png
+          fi
+
+      - name: Mandar los correos
+        if: steps.pendientes.outputs.hay != '0'
+        env:
+          PGCONN: ${{ secrets.SUPABASE_DB_URL }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_REMITENTE: ${{ secrets.BREVO_REMITENTE }}
+        run: |
+          set -euo pipefail
+
+          python3 robot/resultados.py --imagen resumen.png < pendientes.json > resultado.json
+          cat resultado.json          # este si: solo lleva nombres
+
+          leer() { python3 -c "import json; d=json.load(open('resultado.json')); print(d.get('$1',''))"; }
+
+          if [ "$(leer n_enviados)" != "0" ] && [ -n "$(leer n_enviados)" ]; then
+            if [ "$(leer prueba)" = "True" ]; then
+              echo "Modo prueba: no se apunta nada."
+            else
+              # Se apunta DESPUES de salir, como los demas avisos, para que a
+              # quien le haya fallado el correo se le reintente.
+              python3 robot/orden_sql.py avisos < resultado.json > orden.sql
+              cat orden.sql
+              psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden.sql > /dev/null
+            fi
+
+            {
+              echo "## Resultados de la jornada $(leer jornada) mandados$([ "$(leer prueba)" = "True" ] && echo ' (PRUEBA)')"
+              echo ""
+              echo "Con imagen: $(leer con_imagen)"
+              echo ""
+              python3 -c "import json; [print('- '+n) for n in json.load(open('resultado.json'))['nombres']]"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Sin mandar nada: $(leer motivo)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Si algun correo no ha salido, que se vea en rojo: se reintenta solo
+          # en el siguiente pase, pero conviene enterarse.
+          if [ "$(leer n_fallos)" != "0" ] && [ -n "$(leer n_fallos)" ]; then
+            python3 -c "import json; [print('::error::No ha salido el correo de resultados de %s — %s' % (f['nombre'], f['motivo'])) for f in json.load(open('resultado.json'))['fallos']]"
+            exit 1
+          fi

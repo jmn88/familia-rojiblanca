@@ -1,8 +1,8 @@
 -- Familia Rojiblanca 26/27 — autoprueba
 --
 -- Comprueba de punta a punta el PIN, el cierre de plazo, la convocatoria, la
--- puntuacion, el horario oficial, las solicitudes para entrar y el panel de
--- administracion. Crea datos de prueba y los DESHACE al terminar: al lanzar una
+-- puntuacion, el once que publica el robot, el correo de resultados, el horario
+-- oficial, las solicitudes para entrar y el panel de administracion. Crea datos de prueba y los DESHACE al terminar: al lanzar una
 -- excepcion a proposito, PostgreSQL revierte la transaccion entera y no queda
 -- absolutamente nada.
 --
@@ -311,22 +311,57 @@ begin
   r := api_admin_once(v_adm, v_jor, null);   -- se despublica y seguimos probando
   if not (r->>'ok')::boolean then fallos := fallos || E'\n- no deja retirar el once oficial'; end if;
 
-  -- Lo mismo tiene que pasar con una PROPUESTA sin confirmar todavia: basta con
-  -- que el robot la haya encontrado para que se cierre, sin esperar a que el
-  -- administrador la confirme. robot_once() es la funcion que usa el proceso
-  -- automatico (no pasa por api_admin_once ni pide token de administrador).
-  r := robot_once(v_jor, v_conv, 'prueba-autoprueba');
-  if not (r->>'ok')::boolean then
-    fallos := fallos || E'\n- no deja guardar la propuesta del robot: ' || (r->>'error');
+  -- ------------------------------------------------------ el robot del once
+  -- robot_once() es la funcion que usa el proceso automatico (no pasa por
+  -- api_admin_once ni pide token de administrador). Publica el once que lee,
+  -- SALVO que lleve a alguien fuera de la convocatoria: entonces lo deja
+  -- propuesto, con el motivo, para que lo resuelva una persona.
+  r := robot_once(v_jor, v_picks, 'prueba-autoprueba');   -- v_picks lleva uno sin convocar
+  if not (r->>'ok')::boolean or (r->>'publicado')::boolean or not (r->>'propuesto')::boolean then
+    fallos := fallos || E'\n- el robot no deja como propuesta un once con alguien sin convocar: ' || r::text;
+  end if;
+  if (select once_oficial from jornadas where id = v_jor) is not null then
+    fallos := fallos || E'\n- ¡el robot publica un once con alguien fuera de la convocatoria!';
+  end if;
+  if (select once_robot_motivo from jornadas where id = v_jor) not like '%convocatoria%' then
+    fallos := fallos || E'\n- al dejar el once propuesto no apunta el motivo para Admin';
   end if;
 
+  -- Basta con que haya una PROPUESTA para que se cierre el envio, sin esperar
+  -- a que el administrador la resuelva.
   r := api_guardar(v_tok, v_jor, v_conv);
   if (r->>'ok')::boolean then
     fallos := fallos || E'\n- deja enviar la alineacion aunque hay una propuesta de once sin confirmar';
   end if;
 
-  update jornadas set once_propuesto = null, once_propuesto_en = null, once_propuesto_fuente = null
-   where id = v_jor;   -- limpiamos: el resto de la prueba se fia de que no haya nada propuesto
+  -- con una propuesta esperando, el robot no vuelve a tocar nada
+  r := robot_once(v_jor, v_conv, 'prueba-autoprueba');
+  if (r->>'ok')::boolean then
+    fallos := fallos || E'\n- el robot pisa una propuesta que estaba esperando al administrador';
+  end if;
+
+  update jornadas set once_propuesto = null, once_propuesto_en = null, once_propuesto_fuente = null,
+                      once_robot_motivo = null
+   where id = v_jor;
+
+  -- y con un once sacado de la convocatoria, lo publica el solo
+  r := robot_once(v_jor, v_conv, 'prueba-autoprueba');
+  if not (r->>'ok')::boolean or not (r->>'publicado')::boolean then
+    fallos := fallos || E'\n- el robot no publica un once que cuadra con la convocatoria: ' || r::text;
+  end if;
+  if (select once_oficial from jornadas where id = v_jor) is distinct from v_conv
+     or (select publicada_en from jornadas where id = v_jor) is null then
+    fallos := fallos || E'\n- el once publicado por el robot no queda como once oficial';
+  end if;
+  if (select once_propuesto from jornadas where id = v_jor) is not null then
+    fallos := fallos || E'\n- al publicar, el robot deja ademas una propuesta colgando';
+  end if;
+
+  r := robot_once(v_jor, v_conv, 'prueba-autoprueba');
+  if (r->>'ok')::boolean then fallos := fallos || E'\n- el robot pisa un once oficial ya puesto'; end if;
+
+  r := api_admin_once(v_adm, v_jor, null);   -- se despublica y seguimos probando
+  if not (r->>'ok')::boolean then fallos := fallos || E'\n- no deja retirar el once del robot'; end if;
 
   r := api_guardar(v_tok, v_jor, v_conv);
   if not (r->>'ok')::boolean then
@@ -378,6 +413,57 @@ begin
   if v_pts is distinct from 25 then
     fallos := fallos || E'\n- la clasificacion general no suma bien (' || coalesce(v_pts::text, 'nulo') || ')';
   end if;
+
+  -- ------------------------------------------------ el correo de resultados
+  -- Con el once puesto y el plazo cerrado por el reloj, toca escribir a quien
+  -- tenga avisos (ZZ Prueba los tiene). Va con las filas, el once y la general,
+  -- que es lo que lleva el correo y lo que dibuja la imagen del resumen.
+  r := robot_resultados_pendientes();
+  if (r->'jornada'->>'id')::int is distinct from v_jor then
+    fallos := fallos || E'\n- el correo de resultados no coge la jornada recien puntuada';
+  elsif not (r->'jornada'->>'cerrada')::boolean then
+    fallos := fallos || E'\n- el correo de resultados no ve cerrado un plazo que lo esta';
+  else
+    select count(*) into v_n from json_array_elements(r->'avisos') x
+     where (x->>'participante_id')::int = v_part and x->>'email' = v_correo;
+    if v_n <> 1 then fallos := fallos || E'\n- no se mandarian los resultados a quien tiene avisos'; end if;
+
+    select (x->>'puntos')::int into v_pts from json_array_elements(r->'filas') x
+     where (x->>'participante_id')::int = v_part;
+    if v_pts is distinct from 25 then
+      fallos := fallos || E'\n- las filas del correo de resultados no llevan los puntos (' || coalesce(v_pts::text, 'nulo') || ')';
+    end if;
+    if json_array_length(r->'once') <> 11 then
+      fallos := fallos || E'\n- el correo de resultados no lleva el once entero';
+    end if;
+    if json_array_length(r->'general') = 0 then
+      fallos := fallos || E'\n- el correo de resultados no lleva la general';
+    end if;
+  end if;
+
+  -- una vez mandado, no se manda otra vez
+  perform robot_aviso_enviado(v_jor, v_part, 'resultado');
+  select count(*) into v_n from json_array_elements(robot_resultados_pendientes()->'avisos') x
+   where (x->>'participante_id')::int = v_part;
+  if v_n <> 0 then fallos := fallos || E'\n- los resultados se mandarian dos veces'; end if;
+
+  -- en modo prueba (con el numero de jornada) solo se escribe al administrador
+  r := robot_resultados_pendientes(1);
+  if not (r->>'prueba')::boolean or (r->'jornada'->>'id')::int is distinct from v_jor then
+    fallos := fallos || E'\n- el modo prueba del correo de resultados no coge la jornada pedida';
+  end if;
+  select count(*) into v_n from json_array_elements(r->'avisos') x
+   where (x->>'participante_id')::int = v_part;
+  if v_n <> 0 then fallos := fallos || E'\n- el modo prueba del correo de resultados escribe a los participantes'; end if;
+
+  -- y con el plazo aun abierto no se escribe a nadie, aunque el once este puesto
+  delete from recordatorios where jornada_id = v_jor;
+  update jornadas set cierre = now() + interval '10 minutes' where id = v_jor;
+  r := robot_resultados_pendientes();
+  if (r->'jornada'->>'cerrada')::boolean or json_array_length(r->'avisos') <> 0 then
+    fallos := fallos || E'\n- el correo de resultados saldria antes de cerrarse el plazo por el reloj';
+  end if;
+  update jornadas set cierre = now() - interval '1 minute' where id = v_jor;
 
   -- ------------------------------------------------------ horario oficial
   -- El robot del calendario pone solo la hora que publica el club. Lo que no

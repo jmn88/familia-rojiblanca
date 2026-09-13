@@ -77,9 +77,10 @@ navegador.
 - Cuenta atrás hasta el cierre, y aviso si LaLiga aún no ha confirmado la hora.
 - **Avisos por correo**: la primera vez que entras se te pregunta si los
   quieres (con un «Ahora no» que no vuelve a insistir). Después, la tarjeta se
-  queda al final para cambiar el correo, apagarlo o borrarlo. Hay dos clases de
-  aviso: cuando se conoce la convocatoria y cuando faltan 3 horas y no has
-  enviado. Ver «Los robots» y «Decisiones».
+  queda al final para cambiar el correo, apagarlo o borrarlo. Hay tres clases de
+  aviso: cuando se conoce la convocatoria, cuando faltan 3 horas y no has
+  enviado, y los resultados de la jornada (con la imagen del resumen adjunta).
+  Ver «Los robots» y «Decisiones».
 
 ### Jornada
 - Antes del cierre: solo se ve **quién ha enviado ya**, nunca qué.
@@ -104,8 +105,10 @@ navegador.
   y se quita al guardar esa jornada.
 - **Convocatoria**: se carga sola (ver «Los robots»), y si hace falta se sube la
   foto del club y se lee en el propio navegador. Se repasa y se guarda.
-- **Once inicial**: el robot lo deja propuesto y el administrador lo confirma con
-  «Usar esta propuesta» + Guardar. También se puede marcar a mano.
+- **Once inicial**: lo lee y lo **publica solo el robot**. Solo si el once
+  leído lleva a alguien fuera de la convocatoria se queda como propuesta, con
+  el motivo en rojo, y el administrador lo resuelve («Usar esta propuesta» +
+  Guardar, tras corregir la convocatoria). También se puede marcar a mano.
 - **Solicitudes para entrar**: quién ha pedido jugar, con Aprobar y Rechazar, y
   a quién se le avisa por correo cuando llega una.
 - **Participantes**: alta y reinicio de PIN, y quién tiene avisos por correo
@@ -202,13 +205,24 @@ navegador.
   `comun.nota`). Si no cuadran, esa jornada se deja en paz.
 
 ### El once inicial
-- **El robot lo PROPONE, no lo publica.** Se guarda en `once_propuesto` y el
-  administrador lo confirma desde Admin. Decisión del usuario y con motivo: el
-  once reparte los puntos, así que de eso responde una persona.
-  **No lo conviertas en automático.**
-- Si a 45 min del inicio no hay once ni propuesta, Admin lo avisa en rojo (se
-  calcula en el navegador con `kickoff`, sin estado nuevo) y enseña el último
-  intento del robot (`once_robot_intento` / `once_robot_motivo`).
+- **El robot lo PUBLICA** (`robot_once` en SQL escribe `once_oficial` y
+  `publicada_en`), y con él se reparten los puntos en el acto. Decisión del
+  usuario, 12 de septiembre de 2026: empezó proponiéndolo para que lo confirmara
+  una persona («el once reparte los puntos»), y tras cinco jornadas sin un solo
+  fallo pidió que fuera solo, sin confirmación.
+- **Única salvaguarda, y no la quites**: si el once leído lleva a alguien fuera
+  de la convocatoria, `robot_once` NO publica; lo deja en `once_propuesto` con
+  el motivo en `once_robot_motivo`, y Admin lo enseña en rojo. Motivo: la
+  convocatoria también la lee un robot y puede estar mal leída; publicar ahí
+  repartiría puntos con datos malos. Es la misma regla que ya tenía
+  `api_admin_once`. Mientras hay una propuesta esperando, el robot no vuelve a
+  tocar esa jornada.
+- El resto sigue igual: nunca pisa un once puesto por una persona; si no casan
+  11 nombres no guarda nada; y si a 45 min del inicio no hay once ni propuesta,
+  Admin lo avisa en rojo (se calcula en el navegador con `kickoff`) y enseña el
+  último intento del robot (`once_robot_intento` / `once_robot_motivo`).
+- Si el robot publicara un once equivocado, se corrige desde Admin y los puntos
+  se recalculan solos. El correo de resultados no se vuelve a mandar.
 
 ### El resumen de la jornada para WhatsApp
 - **Se dibuja en el navegador y lo comparte la persona**, no un robot. Motivo:
@@ -229,6 +243,15 @@ navegador.
   cada 1 de ancho). Si añades algo, que no vuelva a estirarse.
 - **Los emojis los pinta el sistema**: en Windows salen distintos que en
   Android, y da igual, porque la imagen se genera en el móvil de quien pulsa.
+  (En el correo de resultados la genera Linux: ahí van Roboto y Noto Color
+  Emoji, que se instalan en el propio paso de `resultados.yml`.)
+- **La misma imagen la dibuja también el robot de los resultados**, para
+  adjuntarla al correo, y lo hace con el MISMO `app/resumen.js`: `RESUMEN.lienzo()`
+  (síncrona, devuelve el canvas) se abre en un Chrome sin ventana con
+  `--dump-dom` (`robot/resumen_imagen.py`) y se recoge el PNG del DOM. Se
+  descartó reprogramar el dibujo en Python (Pillow): dos dibujos se desincronizan
+  en cuanto uno cambia. Sin Node, sin pip, sin Playwright: solo el Chrome que ya
+  traen las máquinas de GitHub (y el de Windows para probar aquí).
 
 ### Las solicitudes para entrar (issue #11)
 - **Una solicitud NO es un participante.** Vive en su propia tabla
@@ -288,17 +311,39 @@ navegador.
 - **Se manda aunque la hora no esté confirmada**, diciéndolo en el propio correo.
   `hora_confirmada` es una marca que pone el admin a mano, y si se le olvida el
   partido se juega igual: callarse sería peor.
+- **El correo de resultados** (12 de septiembre de 2026, a petición del usuario):
+  con el once publicado, a cada uno con avisos le llega el once del Sevilla, su
+  alineación con los aciertos marcados, sus puntos y su puesto, la del día, la
+  general y la imagen del resumen adjunta. Reglas:
+  - **Espera al cierre por reloj** (`cerrada` en `robot_resultados_pendientes`):
+    el once suele conocerse antes del cierre y el correo enseña las alineaciones
+    de todos, que la web tampoco revela hasta esa hora. `resultados.yml` se queda
+    esperando dentro de la ejecución (tope 2 h), como los otros robots.
+  - **Solo jornadas publicadas desde `config.resultados_desde`**, que se pone
+    sola al aplicar `09_resultados.sql`: las jornadas 1 a 5 ya estaban jugadas y
+    no hay que escribir de ellas.
+  - Un correo por persona y jornada (`recordatorios` con `tipo = 'resultado'`),
+    apuntado después de salir. Corregir el once después no lo vuelve a mandar.
+  - Va con el mismo interruptor de avisos que los otros dos: no se pregunta por
+    separado.
+  - **Modo prueba**: `robot_resultados_pendientes(N)` con el número de una
+    jornada ya jugada devuelve solo al administrador (`config.admin_participante`)
+    y `prueba: true`; el workflow no apunta nada. Es el botón *Run workflow* con
+    la casilla rellena.
+  - Si la imagen no se puede dibujar, el correo sale igual sin ella (aviso
+    amarillo en Actions): mejor sin foto que sin correo.
 
 ## Los robots
 
-Cuatro procesos de GitHub, cada uno en su fichero, que van solos. **Quién decide
+Cinco procesos de GitHub, cada uno en su fichero, que van solos. **Quién decide
 si toca actuar es SQL, no el cron**: fuera de su ventana, el proceso se va de
 vacío en segundos.
 
 | Proceso | Cada | Ventana (la marca SQL) | Qué hace |
 |---|---|---|---|
 | `convocatoria.yml` | 30 min | desde las 10:00 de la víspera, con el plazo abierto | Carga la convocatoria |
-| `once.yml` | 15 min, solo 8-20 UTC | desde 3 h antes hasta que aparece (tope: +3 h) | Deja el once **propuesto**; **espera dentro de la ejecución** |
+| `once.yml` | 15 min, solo 8-20 UTC | desde 3 h antes hasta que aparece (tope: +3 h) | **Publica el once** (o lo deja propuesto si alguien no está convocado); **espera dentro de la ejecución** |
+| `resultados.yml` | 15 min, **y al acabar el del once**; espera al cierre dentro | jornada publicada desde `resultados_desde`, con alguien sin avisar | Dibuja el resumen con Chrome y manda el correo de resultados |
 | `avisos.yml` | 15 min, **y al acabar la convocatoria**; espera dentro | próximo partido, plazo abierto y sin once | Escribe a quien tenga avisos: «ya hay convocatoria», y «te falta el once» 3 h antes |
 | `avisos.yml` (1er paso) | 15 min | solicitudes pendientes sin avisar | Le dice al administrador que alguien quiere entrar |
 | `horario.yml` | lunes y jueves | jornadas con el plazo abierto | Trae el horario oficial del calendario del club |
@@ -388,9 +433,11 @@ app/resumen.js        dibuja el resumen de la jornada como imagen (para WhatsApp
 app/app.js            toda la lógica de la interfaz
 robot/comun.py        pedir páginas del club y casar nombres con la plantilla
 robot/convocatoria.py busca la convocatoria en la web del club; lo lanza GitHub
-robot/once.py         busca el once inicial y lo deja PROPUESTO, sin publicar
+robot/once.py         busca el once inicial en la web del club (publicarlo lo decide SQL)
 robot/horario.py      lee el calendario del club y saca el horario oficial
 robot/avisos.py       manda por Brevo los recordatorios que decide SQL
+robot/resultados.py   manda el correo de resultados (reutiliza avisos.py); --esperar dice cuánto falta al cierre
+robot/resumen_imagen.py  dibuja la imagen del resumen con app/resumen.js en un Chrome sin ventana
 robot/solicitudes.py  avisa al administrador de quien ha pedido entrar
 robot/orden_sql.py    arma la orden de SQL, ya escapada, que guarda el resultado
 robot/resumen_horario.py  el resumen del calendario que sale en Actions
@@ -403,6 +450,7 @@ sql/05_robot.sql      funciones del robot; cerradas al rol anónimo a propósito
 sql/06_avisos.sql     avisos por correo: correo cifrado y a quién toca avisar
 sql/07_horario.sql    el robot del horario oficial; cerrado al rol anónimo
 sql/08_solicitudes.sql  pedir entrar en la porra y aprobarlo
+sql/09_resultados.sql el correo de resultados: qué jornada, a quién y con qué datos
 sql/99_autoprueba.sql prueba de extremo a extremo; no deja rastro
 data/seed.json        los mismos datos de partida en JSON, como referencia
 ```
@@ -552,6 +600,18 @@ ejecución deshace ese fichero entero.
   página. Elegir jugador lo hacía once veces seguidas. Si añades algo que
   repinte, devuelve el foco después (`app.js`, `data-elegir`) o actualiza solo lo
   que cambia, como ya hace el selector de convocatoria.
+- **Chrome sin ventana en Windows no arranca con un perfil en una ruta larga**
+  (`Lock file can not be created`, salida 21, sin más pista): el `--user-data-dir`
+  tiene que ser corto. `robot/resumen_imagen.py` usa `tempfile.mkdtemp`, que
+  cae en `%TEMP%`, y va bien. Y sin `--user-data-dir` se engancha al Chrome
+  abierto del usuario («Se está abriendo en una sesión existente») y no devuelve
+  nada. En GitHub (Linux) ninguna de las dos cosas pasa.
+- **`python -c "json.load(open(...))"` en Windows lee con cp1252 y revienta con
+  los acentos.** Los `leer()` de los workflows van así y en GitHub (UTF-8) no
+  pasa nada; para simularlos aquí, `PYTHONUTF8=1`. El antivirus del usuario
+  (Avast) marcó además un `pendientes.json` de esas simulaciones como
+  `IDP.Generic`: falso positivo por ser un fichero recién creado por un script.
+  No dejes ficheros de simulación en la carpeta del proyecto.
 - **Puede haber más de una sesión de Claude trabajando en esta carpeta.** Ya pasó:
   una sesión hizo commit del trabajo a medias de la otra. Si ves cambios que no
   son tuyos, para y pregunta. (Vuelve a pasar: en agosto de 2026 otra sesión tenía
@@ -619,8 +679,8 @@ publicada: `app.js` idéntico byte a byte al del repositorio.
 
 **El resumen para WhatsApp está en producción** (PR #20 y #21, 12 de
 septiembre de 2026) y **estrenado de verdad**: el usuario lo compartió desde su
-Android y la hoja de compartir funcionó. De ahí salió el cambio de forma que
-está pendiente.
+Android y la hoja de compartir funcionó. De ahí salió el cambio a dos columnas
+(PR #22, fusionado).
 
 **El mercado de septiembre de 2026 se cierra con la rama
 `bajas-sin-borrar-historia`** (2 de septiembre de 2026), pendiente de PR. Antes
@@ -629,10 +689,22 @@ inactivos: ver la trampa de las bajas, más arriba.
 
 ## Pendiente
 
-0. **PR «Resumen casi cuadrado» sin fusionar** (rama `resumen-cuadrado`, 12 de
-   septiembre de 2026): la nueva disposición a dos columnas del resumen para
-   WhatsApp. Ver «Decisiones». Comprobado en `demo.html`. Al fusionar, mirar en
-   el móvil que se ve entera en el chat sin abrirla.
+0. **PR «Once automático y correo de resultados» sin fusionar** (rama
+   `once-automatico-y-resultados`, 12 de septiembre de 2026). Ver «Decisiones»
+   → «El once inicial» y «Los avisos por correo». Comprobado aquí: la imagen
+   sale por Chrome sin ventana idéntica a la de la web (con los datos reales de
+   la jornada 5); el texto del correo, fingiendo el envío; los tres pasos de
+   `resultados.yml` simulados en bash con un `psql` falso (con espera, sin
+   jornada, con fallo de Brevo y con éxito); y `demo.html` sigue generando el
+   PNG tras el cambio de `resumen.js`. **Sin probar**: la autoprueba (aquí no
+   hay PostgreSQL; lleva las comprobaciones nuevas del robot y del correo), las
+   fuentes en Linux (`fonts-roboto` y `fonts-noto-color-emoji` se instalan en
+   el paso; si el emoji saliera como cuadrado, es eso), y un envío de verdad.
+   **Al fusionar**: pasar la autoprueba; lanzar *Resultados por correo* a mano
+   con «5» en la casilla (correo solo a Jesús, no apunta nada) y mirar que
+   llega con la imagen; la primera jornada de verdad es la 6 (Deportivo, 16 de
+   septiembre a las 19:00). Las jornadas 1 a 5 no reciben correo
+   (`resultados_desde`).
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
    siempre en rojo** — lanza una excepción para revertir lo que crea; lo que vale
@@ -652,9 +724,10 @@ inactivos: ver la trampa de las bajas, más arriba.
    `bajas-sin-borrar-historia`**, o al dar de baja a Oso las jornadas 1 y 2 se
    quedan escritas a medias. A los fichajes, alta normal; a Oso, quitarle el
    «Activo» y nada más — borrarlo sí se llevaría por delante los puntos.
-5. **El robot del once no se ha estrenado en un partido de verdad**: se probó con
-   el texto real ya publicado, pero aún no ha cazado una alineación él solo.
-   Conviene mirar la primera con calma.
+5. **El robot del once lleva cinco jornadas cazando la alineación él solo**
+   (jornadas 1 a 5, sin un fallo; por eso pasó a publicarla). Lo que no se ha
+   estrenado es que la publique y que salga el correo de resultados: la primera
+   ocasión es la jornada 6.
 6. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.

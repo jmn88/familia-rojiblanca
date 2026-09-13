@@ -325,8 +325,15 @@ const RESUMEN = (function () {
        jornadasJugadas cuántas jornadas van puntuadas
        nombre          id de jugador -> nombre
        jugador         id de jugador -> { nombre, dorsal, posicion }
-       fecha           el día y la hora ya escritos */
-  async function imagen(datos) {
+       fecha           el día y la hora ya escritos
+
+     lienzo() devuelve el <canvas> ya pintado, y lo hace de un tirón, sin
+     esperas: así lo puede usar también el robot que manda el correo de
+     resultados (robot/resumen_imagen.py), que abre esta misma función en un
+     Chrome sin ventana y se lleva el PNG. Es la misma imagen que la de
+     WhatsApp porque es el mismo código. imagen() es lo que usa la web: el
+     mismo lienzo convertido en fichero. */
+  function lienzo(datos) {
     const { jornada: j, filas, general, nombre, jugador, fecha, jornadasJugadas } = datos;
     const once = j.once_oficial || [];
     const dia = puestos(filas.slice().sort((a, b) => b.puntos - a.puntos || a.nombre.localeCompare(b.nombre)));
@@ -362,11 +369,16 @@ const RESUMEN = (function () {
     texto(ctx, "jmn88.github.io/familia-rojiblanca", ANCHO / 2, y + 20, f("400", 22), C.suave, "center");
     y += 20 + 40;
 
-    const lienzo = document.createElement("canvas");
-    lienzo.width = ANCHO; lienzo.height = Math.ceil(y);
-    lienzo.getContext("2d").drawImage(borrador, 0, 0, ANCHO, y, 0, 0, ANCHO, y);
+    const final = document.createElement("canvas");
+    final.width = ANCHO; final.height = Math.ceil(y);
+    final.getContext("2d").drawImage(borrador, 0, 0, ANCHO, y, 0, 0, ANCHO, y);
+    return final;
+  }
+
+  async function imagen(datos) {
+    const final = lienzo(datos);
     return new Promise((listo, fallo) =>
-      lienzo.toBlob(b => b ? listo(b) : fallo(new Error("No se ha podido generar la imagen.")), "image/png"));
+      final.toBlob(b => b ? listo(b) : fallo(new Error("No se ha podido generar la imagen.")), "image/png"));
   }
 
   /* --------------------------------------------------------- compartir --- */
@@ -391,5 +403,5 @@ const RESUMEN = (function () {
     return "descargado";
   }
 
-  return { imagen, compartir };
+  return { lienzo, imagen, compartir };
 })();

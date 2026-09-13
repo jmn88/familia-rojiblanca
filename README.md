@@ -145,8 +145,9 @@ base de datos y nunca salen de ella.
   hace falta, pero eso no reabre el envío si el once ya está confirmado. Hasta el
   cierre nadie ve las alineaciones de los demás (solo quién ha enviado ya); esa
   revelación sigue yendo por la hora prevista, no por si el once se conoce antes.
-- **Clasificación del día**: al cerrarse se revelan todos los onces. Cuando el
-  admin marca el once inicial real, aparecen aciertos y puntos. Debajo de cada
+- **Clasificación del día**: al cerrarse se revelan todos los onces. En cuanto
+  se conoce el once inicial real (lo lee y lo publica solo el robot; ver más
+  abajo), aparecen aciertos y puntos. Debajo de cada
   alineación se ve **a qué hora la envió cada uno** y, si la retocó, cuándo fue
   el último cambio — para las discusiones de después. Esas horas salen al mismo
   tiempo que las alineaciones: antes del cierre nadie las ve.
@@ -154,8 +155,10 @@ base de datos y nunca salen de ella.
   muestran como tales (dos primeros, ningún segundo).
 - Quien no envía alineación figura como **no participó**, con 0 puntos.
 - **Avisos por correo** (opcionales, los activa cada uno): uno en cuanto se
-  conoce la convocatoria, con la lista de convocados, y otro tres horas antes
-  del partido si sigues sin enviar tu once. Ver más abajo.
+  conoce la convocatoria, con la lista de convocados; otro tres horas antes
+  del partido si sigues sin enviar tu once; y otro con los resultados de la
+  jornada (el once, tus puntos, las clasificaciones y la imagen del resumen).
+  Ver más abajo.
 - **Quién juega**: los participantes de siempre y quien pida entrar desde la
   propia web, siempre que el administrador lo apruebe. Ver más abajo.
 
@@ -223,7 +226,7 @@ Los nombres no coinciden exactamente con los de la plantilla («Juan Iglesias» 
 canteranos que no estén dados de alta se quedan fuera y se anotan en el registro
 del proceso; si quieres que puedan alinearse, añádelos desde Admin.
 
-## El once inicial: te lo deja propuesto, tú lo confirmas
+## El once inicial se publica solo
 
 El mismo proceso busca también el once. Cuando se confirma la alineación, el club
 lo escribe en la noticia **en directo** del partido:
@@ -232,23 +235,31 @@ lo escribe en la noticia **en directo** del partido:
 > Luis García Plaza sale con Odysseas; Iglesias, Sangante, Kike Salas, Suazo;
 > Agoumé, Nico Guillén, Guridi; Miguel Sierra, Oso e Isaac.
 
-Lo busca **cada cinco minutos, desde hora y media antes del partido**, y deja de
+Lo busca **cada dos minutos, desde hora y media antes del partido**, y deja de
 mirar en cuanto lo encuentra. Si a **45 minutos del inicio** sigue sin aparecer,
 la pestaña **Admin** te lo avisa en rojo para que lo vayas marcando a mano; ahí
 verás también a qué hora miró el robot por última vez y con qué se encontró.
 
-De ahí saca los once nombres. Pero **no los publica**: los deja como propuesta.
-En **Admin → Once inicial** te aparece un recuadro con la alineación leída y un
-botón *Usar esta propuesta*, que la coloca sobre el campo; la repasas y le das a
-*Guardar once oficial*. **Hasta que no la guardas tú no se puntúa nada.**
+De ahí saca los once nombres y **los publica como once oficial**: en ese momento
+se reparten los puntos de la jornada y, en cuanto se cierra el plazo, sale el
+correo de resultados (ver «Los avisos por correo»). Durante las cinco primeras
+jornadas el robot solo lo dejaba propuesto y lo confirmabas tú; como no falló
+ni una vez, desde septiembre de 2026 va solo.
 
-Es a propósito: el once es lo que reparte los puntos, así que de eso responde una
-persona y no un robot. Confirmarlo son dos toques.
+Queda **una salvaguarda**: si en el once leído hay alguien que **no estaba en la
+convocatoria** (que también la lee un robot, y puede haberla leído mal), no lo
+publica. Lo deja como propuesta y en **Admin → Once inicial** aparece un recuadro
+rojo con la alineación leída y el motivo. Si ese jugador jugó de verdad, corrige
+primero la convocatoria, dale a *Usar esta propuesta* y a *Guardar once
+oficial*. Hasta que no lo guardes tú no se puntúa nada.
 
 Si algo no cuadra —que lean diez nombres, o uno que no está en la plantilla— no
-propone nada y lo anota en su registro. Tú lo marcas a mano como siempre.
+publica nada y lo anota en su registro. Tú lo marcas a mano como siempre. Y si
+alguna vez el robot se equivoca, se corrige desde Admin: los puntos se recalculan
+solos al guardar el once bueno (el correo de resultados, eso sí, ya habrá salido
+con el once equivocado; no se manda otro).
 
-Son **dos procesos separados** — *Cargar la convocatoria* y *Proponer el once
+Son **dos procesos separados** — *Cargar la convocatoria* y *Cargar el once
 inicial*—, cada uno con su botón *Run workflow* en la pestaña **Actions**. Van
 aparte a propósito: son cosas distintas y en momentos distintos, y así ninguna
 arrastra a la otra si falla.
@@ -292,7 +303,7 @@ sola carta con todas.
 
 ## Los avisos por correo
 
-La web escribe a quien quiera, y solo por dos motivos:
+La web escribe a quien quiera, y solo por tres motivos:
 
 - **«Ya hay convocatoria»**, en cuanto se sabe a quién ha convocado el Sevilla
   (la cargue el robot o la cargues tú a mano). Lleva la lista de convocados, el
@@ -302,12 +313,24 @@ La web escribe a quien quiera, y solo por dos motivos:
   dice con nombre y apellidos.
 - **«Te falta la alineación»**, tres horas antes del partido, solo a quien sigue
   sin enviar nada.
+- **«Resultados»**, en cuanto se conoce el once inicial y se cierra el plazo.
+  Lleva el once del Sevilla, tu alineación con los aciertos marcados, tus puntos
+  y tu puesto, la clasificación de la jornada y la general, y **adjunta la
+  imagen del resumen** —la misma que se comparte por WhatsApp desde la web—.
+  Como el once suele saberse antes de la hora de cierre y el correo enseña las
+  alineaciones de todos, espera a que se cierre el plazo, igual que la web.
 
-Uno de cada clase por persona y jornada, y nada más — ni resultados, ni
-clasificaciones. Si a alguien le tocaran los dos a la vez (porque la
-convocatoria llega ya con el partido encima), sale primero el de la
-convocatoria y el otro espera al siguiente cuarto de hora: dos correos de golpe
-son uno de más.
+Uno de cada clase por persona y jornada, y nada más. Si a alguien le tocaran la
+convocatoria y la alineación a la vez (porque la convocatoria llega ya con el
+partido encima), sale primero el de la convocatoria y el otro espera al
+siguiente cuarto de hora: dos correos de golpe son uno de más.
+
+El de resultados va en su propio proceso (`.github/workflows/resultados.yml`),
+que se lanza solo al terminar el del once y, por si el once lo marcas tú a mano,
+también cada cuarto de hora. **Para probarlo sin esperar al partido**: Actions →
+*Resultados por correo* → *Run workflow*, y en la casilla el número de una
+jornada ya jugada. Así el correo va **solo a ti** (al administrador) y no queda
+apuntado como enviado.
 
 Es **voluntario y lo decide cada uno**. La primera vez que entras con tu nombre
 te sale la pregunta arriba del todo, con un *Ahora no* que la quita para
@@ -321,14 +344,14 @@ de participantes de Admin verás quién tiene avisos, pero solo como
 
 Un proceso de GitHub (`.github/workflows/avisos.yml`) mira cada cuarto de hora.
 Como en los otros robots, quien decide si toca es la base de datos: fuera de la
-ventana se va de vacío en segundos. Y no escribe a nadie si el once ya se conoce,
-porque a esas alturas el plazo está cerrado de hecho y el correo solo
-fastidiaría.
+ventana se va de vacío en segundos. Y no manda la convocatoria ni el
+recordatorio si el once ya se conoce, porque a esas alturas el plazo está
+cerrado de hecho y el correo solo fastidiaría.
 
 ### Darlo de alta (una vez)
 
 Los correos salen por **Brevo**, que deja mandar 300 al día gratis. Aquí como
-mucho salen 6 por jornada.
+mucho salen tres por persona y jornada.
 
 1. Crea la cuenta en <https://www.brevo.com> y verifica tu dirección de correo
    como **remitente** (te llega un correo de confirmación). Es la dirección desde
@@ -406,9 +429,11 @@ app/convocatoria.js   lee la foto de la convocatoria y la cruza con la plantilla
 app/app.js            lógica de la interfaz
 robot/comun.py        lo que comparten los robots (pedir páginas, casar nombres)
 robot/convocatoria.py busca la convocatoria en la web del club (lo usa GitHub)
-robot/once.py         busca el once inicial y lo deja propuesto
+robot/once.py         busca el once inicial en la web del club (lo publica SQL)
 robot/horario.py      lee el calendario del club y trae la hora oficial
 robot/avisos.py       manda los recordatorios de alineación por correo
+robot/resultados.py   manda el correo de resultados, con la imagen adjunta
+robot/resumen_imagen.py  dibuja la imagen del resumen con app/resumen.js y un Chrome sin ventana
 robot/solicitudes.py  avisa al administrador de quien ha pedido entrar
 robot/orden_sql.py    arma la orden de SQL que guarda lo que han encontrado
 robot/resumen_horario.py  el resumen del calendario que sale en Actions
@@ -421,6 +446,7 @@ sql/05_robot.sql      lo que usa el robot de la convocatoria
 sql/06_avisos.sql     los avisos por correo (el correo, cifrado)
 sql/07_horario.sql    el robot que trae el horario oficial de los partidos
 sql/08_solicitudes.sql  pedir entrar en la porra, y aprobarlo o rechazarlo
+sql/09_resultados.sql el correo de resultados: a quién y con qué
 sql/99_autoprueba.sql prueba de que todo funciona; no deja rastro
 data/seed.json        los mismos datos en JSON, para referencia
 ```

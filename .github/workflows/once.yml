@@ -1,4 +1,5 @@
-# Deja PROPUESTO el once inicial del Sevilla FC.
+# Carga el once inicial del Sevilla FC y lo PUBLICA: con el se reparten los
+# puntos de la jornada en el acto.
 #
 # EL CRON AQUI ES SOLO UN DESPERTADOR, no el reloj.
 #
@@ -31,15 +32,21 @@
 # Si a 45 minutos del partido sigue sin encontrarla, la web lo avisa en Admin
 # para que se marque a mano.
 #
-# NO la publica: el once oficial es lo que reparte los puntos, asi que lo
-# confirma el administrador desde Admin ("Usar esta propuesta" y guardar).
+# Empezo dejando el once solo PROPUESTO, para que lo confirmara el
+# administrador; tras cinco jornadas sin fallar, en septiembre de 2026 paso a
+# publicarlo el solo. Queda una salvaguarda, que la decide SQL (robot_once):
+# si el once leido lleva a alguien fuera de la convocatoria, no se publica, se
+# deja propuesto y Admin lo avisa, como antes.
+#
+# Al terminar se lanza «Resultados por correo» (workflow_run), que escribe a
+# cada participante con el once, sus puntos y la imagen del resumen.
 #
 # Va aparte de la convocatoria a proposito: son cosas distintas y en momentos
 # distintos, y asi ninguna arrastra a la otra si falla.
 #
-# Para lanzarlo a mano: pestaña Actions -> Proponer el once inicial -> Run workflow.
+# Para lanzarlo a mano: pestaña Actions -> Cargar el once inicial -> Run workflow.
 
-name: Proponer el once inicial
+name: Cargar el once inicial
 
 on:
   schedule:
@@ -66,7 +73,7 @@ jobs:
       - name: Asegurar el cliente de PostgreSQL
         run: command -v psql || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-client)
 
-      - name: Buscar el once y dejarlo propuesto
+      - name: Buscar el once y publicarlo
         env:
           PGCONN: ${{ secrets.SUPABASE_DB_URL }}
         run: |
@@ -87,7 +94,7 @@ jobs:
 
           if [ "$(leer ok)" != "True" ]; then
             MOTIVO=$(leer motivo)
-            echo "Sin proponer nada: $MOTIVO" >> "$GITHUB_STEP_SUMMARY"
+            echo "Sin publicar nada: $MOTIVO" >> "$GITHUB_STEP_SUMMARY"
 
             # Si habia un partido esperando el once, se anota el intento, para
             # que en Admin se vea que el robot esta mirando y que ha encontrado.
@@ -104,14 +111,28 @@ jobs:
           cat orden.sql
           psql "$PGCONN" -v ON_ERROR_STOP=1 -t -A -f orden.sql | tee guardado.txt
 
+          # La base de datos dice si lo ha publicado o si lo ha dejado propuesto
+          # (solo pasa si alguien del once no estaba en la convocatoria).
+          bd() { python3 -c "import json; d=json.load(open('guardado.txt')); print(d.get('$1',''))" 2>/dev/null || echo ""; }
+
           {
-            echo "## Once propuesto para la jornada $(leer jornada)"
+            if [ "$(bd publicado)" = "True" ]; then
+              echo "## Once publicado para la jornada $(leer jornada)"
+              echo ""
+              echo "Ya estan repartidos los puntos. El correo de resultados sale en cuanto se cierre el plazo."
+            elif [ "$(bd propuesto)" = "True" ]; then
+              echo "## Once PROPUESTO para la jornada $(leer jornada), sin publicar"
+              echo ""
+              echo "Alguien del once no esta en la convocatoria ($(bd fuera)): **hay que resolverlo desde Admin** (corregir la convocatoria o marcar el once a mano). Hasta entonces no se puntua nada."
+            else
+              echo "## La base de datos no ha guardado el once de la jornada $(leer jornada)"
+              echo ""
+              echo "Motivo: $(bd error)"
+            fi
             echo ""
             echo "Fuente: $(leer fuente)"
             echo ""
             echo "Respuesta de la base de datos: \`$(cat guardado.txt)\`"
-            echo ""
-            echo "**Falta confirmarlo desde Admin**: hasta entonces no se puntua nada."
             echo ""
             python3 -c "import json; d=json.load(open('resultado.json')); [print('- '+c['nombre']) for c in d['casados']]"
           } >> "$GITHUB_STEP_SUMMARY"
