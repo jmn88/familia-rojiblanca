@@ -1,0 +1,1 @@
+Imagenes del resumen de cada jornada, para el correo de resultados. Las sube sola resultados.yml.
