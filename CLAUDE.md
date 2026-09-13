@@ -612,6 +612,12 @@ ejecución deshace ese fichero entero.
   (Avast) marcó además un `pendientes.json` de esas simulaciones como
   `IDP.Generic`: falso positivo por ser un fichero recién creado por un script.
   No dejes ficheros de simulación en la carpeta del proyecto.
+- **Al fusionar un PR con SQL, «Aplicar SQL a Supabase» tarda medio minuto.**
+  Lanzar a mano otro proceso en ese medio minuto lo pilla a medias: pasó el 13
+  de septiembre de 2026, la prueba del correo de resultados se lanzó tres
+  segundos antes de que terminara de aplicarse el 09 y falló con «function
+  robot_resultados_pendientes(integer) does not exist». No era un fallo del
+  código: se espera a que el de aplicar SQL esté en verde y se vuelve a lanzar.
 - **Puede haber más de una sesión de Claude trabajando en esta carpeta.** Ya pasó:
   una sesión hizo commit del trabajo a medias de la otra. Si ves cambios que no
   son tuyos, para y pregunta. (Vuelve a pasar: en agosto de 2026 otra sesión tenía
@@ -689,8 +695,8 @@ inactivos: ver la trampa de las bajas, más arriba.
 
 ## Pendiente
 
-0. **PR «Once automático y correo de resultados» sin fusionar** (rama
-   `once-automatico-y-resultados`, 12 de septiembre de 2026). Ver «Decisiones»
+0. **El once automático y el correo de resultados están en `main`** (PR #23,
+   fusionado el 13 de septiembre de 2026; el SQL se aplicó en verde). Ver «Decisiones»
    → «El once inicial» y «Los avisos por correo». Comprobado aquí: la imagen
    sale por Chrome sin ventana idéntica a la de la web (con los datos reales de
    la jornada 5); el texto del correo, fingiendo el envío; los tres pasos de
@@ -700,10 +706,11 @@ inactivos: ver la trampa de las bajas, más arriba.
    hay PostgreSQL; lleva las comprobaciones nuevas del robot y del correo), las
    fuentes en Linux (`fonts-roboto` y `fonts-noto-color-emoji` se instalan en
    el paso; si el emoji saliera como cuadrado, es eso), y un envío de verdad.
-   **Al fusionar**: pasar la autoprueba; lanzar *Resultados por correo* a mano
-   con «5» en la casilla (correo solo a Jesús, no apunta nada) y mirar que
-   llega con la imagen; la primera jornada de verdad es la 6 (Deportivo, 16 de
-   septiembre a las 19:00). Las jornadas 1 a 5 no reciben correo
+   **Queda**: pasar la autoprueba; lanzar *Resultados por correo* a mano con
+   «5» en la casilla (correo solo a Jesús, no apunta nada) y mirar que llega
+   con la imagen — el primer intento falló por lanzarse antes de que acabara de
+   aplicarse el SQL (ver «Trampas»), no por el código; la primera jornada de
+   verdad es la 6 (Deportivo, 16 de septiembre a las 19:00). Las jornadas 1 a 5 no reciben correo
    (`resultados_desde`).
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
