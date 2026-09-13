@@ -21,7 +21,7 @@ const S = {
   convCargada: null,
   convFuente: null,   // de dónde salió la convocatoria guardada (null = a mano)
   convDesde:  null,
-  oncePropuesto: null,  // el once que ha leído el robot, a la espera de confirmar
+  oncePropuesto: null,  // el once que el robot leyó pero no publicó (alguien sin convocar)
   onceFuente:    null,
   onceIntento:   null,  // cuándo miró el robot por última vez, y qué encontró
   onceMotivo:    null,
@@ -316,15 +316,16 @@ function avisosHTML() {
   const primera = !s.avisos_preguntado;
 
   const estado = s.avisos && pista
-    ? aviso(`Avisos encendidos: si tres horas antes del partido no has enviado tu once, te escribimos a ${esc(pista)}.`, "ok")
+    ? aviso(`Avisos encendidos: te escribimos a ${esc(pista)} con la convocatoria, si te falta el once y con los resultados de cada jornada.`, "ok")
     : pista
       ? aviso(`Tienes puesto el correo ${esc(pista)}, pero los avisos están apagados: no te va a llegar nada.`)
       : aviso("No tienes avisos puestos: no te va a llegar ningún correo.");
 
   return `<div class="tarjeta">
     <h2>${primera ? "¿Te avisamos si se te olvida?" : "Avisos por correo"}</h2>
-    <p>Si tres horas antes del partido no has enviado tu alineación, te llega un correo
-       recordándotelo. Nada más: ni resultados, ni clasificaciones, ni nada que no sea eso.</p>
+    <p>Tres correos por jornada, como mucho: cuando se conoce la convocatoria; si tres horas
+       antes del partido no has enviado tu alineación; y, con el once ya publicado, tus
+       aciertos y tus puntos con el resumen de la jornada.</p>
     ${primera ? "" : estado}
     <label for="inp-email">Tu correo</label>
     <input id="inp-email" type="email" inputmode="email" autocomplete="email" spellcheck="false"
@@ -390,7 +391,7 @@ function solicitarHTML() {
     <label for="sol-email" style="margin-top:14px">Correo (si quieres avisos)</label>
     <input id="sol-email" type="email" inputmode="email" autocomplete="email" spellcheck="false"
            placeholder="nombre@correo.com">
-    <p class="cuando" style="margin:6px 0 0">Opcional. Sirve para avisarte cuando se sepa la convocatoria y cuando te falte la alineación. Se guarda cifrado y no lo ve nadie, ni el administrador. Sin correo, no se te avisa de nada.</p>
+    <p class="cuando" style="margin:6px 0 0">Opcional. Sirve para avisarte cuando se sepa la convocatoria, cuando te falte la alineación y con los resultados de cada jornada. Se guarda cifrado y no lo ve nadie, ni el administrador. Sin correo, no se te avisa de nada.</p>
     <div id="msg-solicitud" aria-live="polite"></div>
     <p style="margin-top:14px"><button class="principal" id="btn-solicitar" style="width:100%">Enviar la solicitud</button></p>
     <p style="margin-top:6px"><button id="btn-cancelar-solicitud" style="width:100%">Volver</button></p>
@@ -497,7 +498,7 @@ async function pintarJornada() {
   } else if (!j.publicada) {
     cuerpo = `<div class="tarjeta">
         <h2>Pendiente del once oficial</h2>
-        <p>El plazo se cerró a las ${hora(j.cierre)}. En cuanto el administrador marque el once inicial del Sevilla aparecerán los aciertos y los puntos.</p>
+        <p>El plazo se cerró a las ${hora(j.cierre)}. En cuanto se conozca el once inicial del Sevilla aparecerán los aciertos y los puntos.</p>
       </div>` + onces(filas, null, yo);
   } else {
     const conPuntos = puestos(filas.slice().sort((a, b) => b.puntos - a.puntos || a.nombre.localeCompare(b.nombre)));
@@ -749,13 +750,14 @@ async function pintarAdmin() {
 
   <div class="tarjeta">
     <h2>Once inicial del Sevilla</h2>
-    <p>Marca los 11 titulares. Al guardarlo se calculan solas todas las puntuaciones.</p>
+    <p>Lo lee y lo publica solo el robot desde la web del club, y con él se reparten los puntos. Aquí se marca a mano solo si falla, o para corregirlo.</p>
     <label for="adm-sel-jornada">Jornada</label>
     <select id="adm-sel-jornada">${js.map(j =>
       `<option value="${j.id}" ${j.id === S.adminJornada ? "selected" : ""}>Jornada ${j.numero} · ${rotulo(j)}${j.publicada ? " ✓" : ""}</option>`).join("")}</select>
-    ${S.oncePropuesto && S.oncePropuesto.length ? `<div class="aviso">
-      <b>El robot ha leído este once en la web del club.</b> Repásalo y, si está bien, dale a
-      «Usar esta propuesta» y luego a guardar. No se puntúa nada hasta que lo guardes tú.
+    ${S.oncePropuesto && S.oncePropuesto.length ? `<div class="aviso error">
+      <b>El robot ha leído este once en la web del club, pero no lo ha publicado</b>${S.onceMotivo ? `: ${esc(S.onceMotivo)}` : "."}
+      Si jugó de verdad, corrige antes la convocatoria; luego dale a «Usar esta propuesta» y a guardar.
+      No se puntúa nada hasta que lo guardes tú.
       <ul class="once-lista">${S.oncePropuesto.map(id => `<li>${esc(nombreJug(id))}</li>`).join("")}</ul>
       <p style="margin:10px 0 0">
         <button class="menor" id="btn-usar-propuesta">Usar esta propuesta</button>
@@ -1008,7 +1010,7 @@ document.addEventListener("click", async ev => {
         return;
       }
       await guardarAvisos({ p_email: email || null, p_avisos: true },
-        r => `Listo. Te avisaremos a ${r.email_pista} tres horas antes de cada partido, si te falta la alineación.`);
+        r => `Listo. Te escribiremos a ${r.email_pista} con la convocatoria, si te falta la alineación y con los resultados de cada jornada.`);
       return;
     }
     if (t.id === "btn-avisos-no") {

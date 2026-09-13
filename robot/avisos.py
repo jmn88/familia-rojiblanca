@@ -9,6 +9,9 @@ uno a traves de Brevo. Hay dos clases, y cada aviso trae la suya en 'tipo':
     convocatoria   ya se sabe a quien ha convocado el Sevilla
     alineacion     faltan 3 horas y esa persona sigue sin enviar su once
 
+(La tercera clase, los resultados de la jornada, va en robot/resultados.py,
+que reutiliza de aqui el envio y los trozos de texto.)
+
 Por la salida escupe lo que ha hecho, en JSON y SIN correos: solo nombres. Los
 registros de GitHub Actions de un repositorio publico los puede leer cualquiera,
 asi que el correo de nadie puede acabar impreso ahi. De apuntar lo enviado se
@@ -170,14 +173,19 @@ def sin_correos(texto):
     return re.sub(r"[^\s\"'<>]+@[^\s\"'<>]+", "***@***", texto or "")
 
 
-def mandar(clave, remitente, destino, nombre, asunto, texto):
-    cuerpo = json.dumps({
+def mandar(clave, remitente, destino, nombre, asunto, texto, adjuntos=None):
+    """Un correo por Brevo. Los adjuntos van como [{"name": ..., "content": base64}]
+    (los usa el correo de resultados para la imagen del resumen)."""
+    mensaje = {
         "sender":      {"name": DE, "email": remitente},
         "to":          [{"email": destino, "name": nombre}],
         "subject":     asunto,
         "textContent": texto,
         "htmlContent": como_html(texto),
-    }).encode("utf-8")
+    }
+    if adjuntos:
+        mensaje["attachment"] = adjuntos
+    cuerpo = json.dumps(mensaje).encode("utf-8")
 
     peticion = urllib.request.Request(BREVO, data=cuerpo, headers={
         "api-key":      clave,

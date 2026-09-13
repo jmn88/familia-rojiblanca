@@ -18,9 +18,11 @@ de al lado:
 Esos once nombres estan en el HTML servido, asi que se pueden leer sin
 navegador. Van tambien en una imagen, pero con el texto basta.
 
-Lo que salga de aqui NO se publica como once oficial: se guarda como PROPUESTA
-y el administrador la confirma de un toque. Es lo que reparte los puntos, y de
-eso responde una persona.
+Lo que salga de aqui se PUBLICA como once oficial y reparte los puntos en el
+acto (decision del administrador, septiembre de 2026, tras cinco jornadas sin
+un fallo). Eso lo decide la base de datos, en robot_once(): si el once leido
+lleva a alguien fuera de la convocatoria, no lo publica, lo deja propuesto y
+Admin lo avisa, para que lo resuelva una persona.
 
     python robot/once.py < pendiente.json
 """
