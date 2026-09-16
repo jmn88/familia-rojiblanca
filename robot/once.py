@@ -15,6 +15,12 @@ de al lado:
             Miguel Sierra, Oso, Peque y Ure.
     15:45 | Once confirmado de Luis Garcia Plaza para el conjunto sevillista.
 
+    17:05 | El Sevilla FC sale en Riazor con Odysseas, Iglesias, Castrin, …
+    17:04 | El Depor, por su parte, arranca con Leo Roman, Alti, …
+
+Por eso no se depende de la frase: vale cualquier entrada con exactamente once
+nombres de la plantilla.
+
 Esos once nombres estan en el HTML servido, asi que se pueden leer sin
 navegador. Van tambien en una imagen, pero con el texto basta.
 
@@ -68,8 +74,12 @@ def entradas(texto):
     return [t.strip() for t in ENTRADA.split(comun.sin_etiquetas(texto)) if t.strip()]
 
 
-def once_de(html):
-    """Los once nombres de la alineacion, si ya estan publicados."""
+def once_de(html, plantilla=None):
+    """Los once nombres de la alineacion, si ya estan publicados.
+
+    Con plantilla, solo vale una lista cuyos once nombres casen todos con ella:
+    es lo que separa el once del Sevilla del del rival, que el club escribe
+    igual y en la entrada de al lado."""
     texto = comun.desescapar(html)
     trozos = entradas(texto)
 
@@ -90,16 +100,42 @@ def once_de(html):
     if sale_con:
         posibles.append(comun.sin_etiquetas(sale_con.group(1)))
 
+    # Y si nada de lo anterior da once nombres, se prueban TODAS las entradas
+    # del directo, en su orden. El club no escribe el once dos veces igual (J6:
+    # «El Sevilla FC sale en Riazor con Odysseas, …», sin «once», sin
+    # «confirmado» y sin «sale con»), asi que no se puede depender de la
+    # frase: como con la convocatoria, se busca la entrada que tenga
+    # exactamente once nombres DE LA PLANTILLA, que es lo que descarta la del
+    # rival (el club la escribe igual, en la entrada de al lado).
+    posibles += trozos
+
     for trozo in posibles:
         # «Luis Garcia Plaza sale con Odysseas; …» -> «Odysseas; …»
-        limpio = re.sub(r"^.*?\bsale con\b", "", trozo, flags=re.IGNORECASE)
-        # No se corta por el primer punto: hay apellidos que lo llevan («M. Sierra»).
-        # Si detras del once viniera mas texto, saldrian mas de once nombres y esto
-        # se descarta entero, que es lo que toca: mejor nada que un once inventado.
-        nombres = comun.trocear_nombres(limpio)
-        if len(nombres) == TITULARES:
+        # «El Sevilla FC sale en Riazor con Odysseas, …» -> «Odysseas, …»
+        for limpio in tras_con(trozo):
+            # No se corta por el primer punto: hay apellidos que lo llevan («M. Sierra»).
+            # Si detras del once viniera mas texto, saldrian mas de once nombres y esto
+            # se descarta entero, que es lo que toca: mejor nada que un once inventado.
+            nombres = comun.trocear_nombres(limpio)
+            if len(nombres) != TITULARES:
+                continue
+            if plantilla is not None:
+                casados, _ = comun.casar(nombres, plantilla)
+                if len(casados) != TITULARES:
+                    continue        # once nombres, pero no son los nuestros
             return nombres
     return []
+
+
+def tras_con(trozo):
+    """Las maneras de leer una entrada: desde cada «con» que lleve, y entera.
+
+    La lista de nombres va al final y lo de delante solo estorba, asi que se
+    prueba primero lo mas corto (desde el ultimo «con») y al final la entrada
+    tal cual, por si no lleva ninguno."""
+    variantes = [trozo[m.end():] for m in re.finditer(r"\bcon\b", trozo, flags=re.IGNORECASE)]
+    variantes.append(trozo)
+    return sorted(variantes, key=len)
 
 
 def intentar(jornada, plantilla):
@@ -111,8 +147,18 @@ def intentar(jornada, plantilla):
                           % jornada["rival"]}
 
     url = "%s/actualidad/noticias/%s" % (comun.BASE, slug)
-    nombres = once_de(comun.pedir(url))
+    html = comun.pedir(url)
+    nombres = once_de(html, plantilla)
     if not nombres:
+        # ¿hay alguna lista de once que no case? Se deja dicho, que ayuda a ver
+        # si el club ha cambiado de nombres o es que aun no ha salido
+        otra = once_de(html)
+        if otra:
+            _, sueltos = comun.casar(otra, plantilla)
+            return {"ok": False, "jornada": jornada["numero"], "fuente": url,
+                    "leidos": otra, "sueltos": sueltos,
+                    "motivo": "hay una lista de once nombres pero no casan con la plantilla: %s"
+                              % ", ".join(sueltos[:5])}
         return {"ok": False, "jornada": jornada["numero"], "fuente": url,
                 "motivo": "el once todavia no esta publicado en la noticia"}
 
