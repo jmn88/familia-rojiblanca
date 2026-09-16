@@ -538,6 +538,15 @@ ejecución deshace ese fichero entero.
   («once» o «alineacion» junto a «confirmad», en cualquier orden) y prueba esa y
   las dos de al lado. Lo que no cuadre lo tumba el filtro de siempre: si no salen
   11 nombres que casen con la plantilla, no se propone nada.
+- **Tampoco el once lo escribe el club dos veces igual: no dependas de la
+  frase.** En la jornada 6 (16 de septiembre de 2026) fue «El Sevilla FC sale
+  en Riazor con Odysseas, …»: ni «once», ni «confirmado», ni «sale con». El
+  robot estuvo hora y media despierto sin verlo, con el partido ya empezado.
+  Ahora `once_de()` prueba todas las entradas del directo (cortando por cada
+  «con» que lleven) y se queda con la que tiene exactamente once nombres **de
+  la plantilla**: la del rival, que va en la entrada de al lado con el mismo
+  formato, la descarta el emparejado. Las frases conocidas se quedan solo como
+  atajo. Comprobado contra los directos de las jornadas 3 a 6.
 - **El club escribe el once en MAYÚSCULAS.** Buscar «once» en minúsculas solo
   encuentra cadenas de la tienda («LINEUP: Alineaciones»), y por eso se dio por
   hecho —mal— que el club no publicaba la alineación.
@@ -748,10 +757,12 @@ inactivos: ver la trampa de las bajas, más arriba.
    `bajas-sin-borrar-historia`**, o al dar de baja a Oso las jornadas 1 y 2 se
    quedan escritas a medias. A los fichajes, alta normal; a Oso, quitarle el
    «Activo» y nada más — borrarlo sí se llevaría por delante los puntos.
-5. **El robot del once lleva cinco jornadas cazando la alineación él solo**
-   (jornadas 1 a 5, sin un fallo; por eso pasó a publicarla). Lo que no se ha
-   estrenado es que la publique y que salga el correo de resultados: la primera
-   ocasión es la jornada 6.
+5. **El robot del once**: cinco jornadas cazando la alineación él solo (1 a 5),
+   y en la 6 falló por la frase nueva del club (ver «Trampas»); arreglado en la
+   rama `once-sin-frase`. Además, ese día el cron de GitHub no lo arrancó entre
+   las 15:00 y las 17:47 (hora de Madrid; el partido era a las 19:00) y lo lanzó
+   el usuario a mano. Sigue sin estrenarse que lo publique él solo y que salga
+   el correo de resultados de verdad.
 6. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
