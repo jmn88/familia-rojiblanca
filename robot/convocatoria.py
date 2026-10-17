@@ -49,6 +49,12 @@ FRASES = (
 )
 
 
+# Como empieza la direccion de la noticia. El club tampoco la titula siempre
+# igual: «convocatoria-sevilla-fc-rayo-...» (J1) y, en la jornada 9,
+# «lista-de-convocados-sevilla-fc-visita-al-real-madrid-2026».
+PREFIJOS = ("convocatoria", "lista-de-convocados", "lista-convocados", "convocados")
+
+
 # Una convocatoria nunca baja de once nombres. Sirve para descartar de un
 # vistazo los parrafos que son prosa, antes de ponerse a casar nombres.
 SUELO = 11
@@ -108,7 +114,7 @@ def main():
         return salir({"ok": False, "motivo": "no hay plantilla con la que comparar"})
 
     vistas = []
-    slug = comun.buscar_noticia("convocatoria", jornada["rival"], vistas)
+    slug = comun.buscar_noticia(PREFIJOS, jornada["rival"], vistas)
     if not slug:
         # Se cuentan las direcciones vistas: si la noticia esta y no casa, aqui
         # se ve como la ha titulado el club.

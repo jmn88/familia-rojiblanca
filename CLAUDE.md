@@ -511,10 +511,12 @@ ejecución deshace ese fichero entero.
   «Real Madrid» es «real» y no sale en una dirección que diga solo «madrid».
   Ahora prueba cada palabra útil del rival (`palabras_rival()`, sin «real»,
   «club», «deportivo»…), y cuando no casa, el motivo lista las direcciones que
-  vio con ese prefijo, para ver cómo la ha titulado el club. **Causa deducida
-  del código, no vista en la web**: desde el entorno de Claude no se llega a
-  sevillafc.es. Si el motivo sigue diciendo «ninguna», el prefijo
-  («convocatoria») es el que ha cambiado.
+  vio con ese prefijo, para ver cómo la ha titulado el club. **Pero la causa
+  real era otra**: la noticia se llamaba `lista-de-convocados-sevilla-fc-visita-al-real-madrid-2026`
+  y el robot solo aceptaba direcciones que empezaran por `convocatoria`. Ahora
+  `PREFIJOS` admite varias formas. Si el motivo vuelve a decir «ninguna», el club
+  ha cambiado el título otra vez: añade el prefijo nuevo. Desde el entorno de
+  Claude no se llega a sevillafc.es, así que se probó con direcciones simuladas.
 - **No cortes una lista de nombres por el primer punto: hay apellidos que lo
   llevan.** En la jornada 3 el club escribió «A. Castrín» de octavo, la lista se
   quedó en ocho nombres —uno de ellos la «A» suelta— y el robot se plantó con
