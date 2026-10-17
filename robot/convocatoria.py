@@ -49,6 +49,12 @@ FRASES = (
 )
 
 
+# Como empieza la direccion de la noticia. El club tampoco la titula siempre
+# igual: «convocatoria-sevilla-fc-rayo-...» (J1) y, en la jornada 9,
+# «lista-de-convocados-sevilla-fc-visita-al-real-madrid-2026».
+PREFIJOS = ("convocatoria", "lista-de-convocados", "lista-convocados", "convocados")
+
+
 # Una convocatoria nunca baja de once nombres. Sirve para descartar de un
 # vistazo los parrafos que son prosa, antes de ponerse a casar nombres.
 SUELO = 11
@@ -107,10 +113,16 @@ def main():
     if not plantilla:
         return salir({"ok": False, "motivo": "no hay plantilla con la que comparar"})
 
-    slug = comun.buscar_noticia("convocatoria", jornada["rival"])
+    vistas = []
+    slug = comun.buscar_noticia(PREFIJOS, jornada["rival"], vistas)
     if not slug:
+        # Se cuentan las direcciones vistas: si la noticia esta y no casa, aqui
+        # se ve como la ha titulado el club.
         return salir({"ok": False, "jornada": jornada["numero"],
-                      "motivo": "todavia no esta publicada la convocatoria contra %s" % jornada["rival"]})
+                      "motivo": "todavia no esta publicada la convocatoria contra %s "
+                                "(busque %s; direcciones con ese prefijo en la portada: %s)"
+                                % (jornada["rival"], "/".join(comun.palabras_rival(jornada["rival"])),
+                                   ", ".join(vistas) or "ninguna")})
 
     url = "%s/actualidad/noticias/%s" % (comun.BASE, slug)
     nombres, casados, sueltos = mejor_lista(comun.pedir(url), plantilla)

@@ -140,11 +140,14 @@ def tras_con(trozo):
 
 def intentar(jornada, plantilla):
     """Una pasada: buscar la noticia, leerla y casar los nombres."""
-    slug = comun.buscar_noticia("partido-directo", jornada["rival"])
+    vistas = []
+    slug = comun.buscar_noticia("partido-directo", jornada["rival"], vistas)
     if not slug:
         return {"ok": False, "jornada": jornada["numero"],
-                "motivo": "no encuentro la noticia en directo del partido contra %s"
-                          % jornada["rival"]}
+                "motivo": "no encuentro la noticia en directo del partido contra %s "
+                          "(busque %s; direcciones con ese prefijo: %s)"
+                          % (jornada["rival"], "/".join(comun.palabras_rival(jornada["rival"])),
+                             ", ".join(vistas) or "ninguna")}
 
     url = "%s/actualidad/noticias/%s" % (comun.BASE, slug)
     html = comun.pedir(url)
