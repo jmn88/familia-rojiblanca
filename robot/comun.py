@@ -52,27 +52,45 @@ def como_slug(texto):
     return re.sub(r"[^a-z0-9]+", "-", texto.lower()).strip("-")
 
 
-def buscar_noticia(prefijo, rival):
+# Palabras de un nombre de equipo que no lo distinguen: «Real» lo llevan Madrid,
+# Betis, Sociedad u Oviedo, y el club a menudo las omite en la direccion.
+GENERICAS = {"real", "club", "futbol", "deportivo", "union"}
+
+
+def palabras_rival(rival):
+    """Las palabras del rival con las que buscarlo en una direccion: las de mas
+    de tres letras y que no sean genericas («Real Madrid» -> madrid)."""
+    todas = como_slug(rival).split("-")
+    utiles = [p for p in todas if len(p) > 3 and p not in GENERICAS]
+    return utiles or [p for p in todas if len(p) > 3] or todas
+
+
+def buscar_noticia(prefijo, rival, vistas=None):
     """La direccion de la noticia que empieza por `prefijo` y habla de ese rival.
 
     Las direcciones son del estilo
         /actualidad/noticias/convocatoria-sevilla-fc-rayo-vallecano-laliga-2026-2027
         /actualidad/noticias/partido-directo-sevilla-rayo-laliga-2026-2027
-    y no siempre traen el nombre entero del rival («rayo» a secas), asi que
-    tambien se prueba con su primera palabra. Se recorren en el orden en que
-    salen en la portada, que es el de publicacion: la primera que cuadre es la
-    mas reciente."""
-    portada = pedir(PORTADA)
-    vistos = list(dict.fromkeys(re.findall(r"actualidad/noticias/([a-z0-9\-]+)", portada)))
-    rival_slug = como_slug(rival)
-    primera = rival_slug.split("-")[0]
+    y no siempre traen el nombre entero del rival («rayo» a secas, «madrid» en
+    vez de «real madrid»), asi que tambien se prueba con cada una de sus
+    palabras utiles. Se recorren en el orden en que salen en la portada, que es
+    el de publicacion: la primera que cuadre es la mas reciente.
 
-    for slug in vistos:
+    Si se pasa una lista en `vistas`, se rellena con las direcciones que
+    empiezan por el prefijo, para poder contar por que no ha casado ninguna."""
+    portada = pedir(PORTADA)
+    todas = list(dict.fromkeys(re.findall(r"actualidad/noticias/([a-z0-9\-]+)", portada)))
+    rival_slug = como_slug(rival)
+    palabras = palabras_rival(rival)
+
+    for slug in todas:
         if not slug.startswith(prefijo):
             continue
         if "femenino" in slug or "cantera" in slug:      # otras secciones del club
             continue
-        if rival_slug in slug or primera in slug:
+        if vistas is not None:
+            vistas.append(slug)
+        if rival_slug in slug or any(p in slug for p in palabras):
             return slug
     return None
 

@@ -504,6 +504,17 @@ ejecución deshace ese fichero entero.
   la noticia también cambia** (`convocatoria-sevilla-fc-rayo-vallecano-laliga-2026-2027`
   frente a `convocatoria-athletic-club-sevilla-fc-jornada-2-2627`), pero eso ya lo
   aguantaba `buscar_noticia`.
+- **La noticia se busca por el rival, y el club no lo escribe como la base de
+  datos.** El 17 de octubre de 2026 (jornada 9) el robot decía «todavía no está
+  publicada la convocatoria contra Real Madrid» con la noticia ya publicada:
+  `buscar_noticia` probaba el nombre entero o su **primera palabra**, que en
+  «Real Madrid» es «real» y no sale en una dirección que diga solo «madrid».
+  Ahora prueba cada palabra útil del rival (`palabras_rival()`, sin «real»,
+  «club», «deportivo»…), y cuando no casa, el motivo lista las direcciones que
+  vio con ese prefijo, para ver cómo la ha titulado el club. **Causa deducida
+  del código, no vista en la web**: desde el entorno de Claude no se llega a
+  sevillafc.es. Si el motivo sigue diciendo «ninguna», el prefijo
+  («convocatoria») es el que ha cambiado.
 - **No cortes una lista de nombres por el primer punto: hay apellidos que lo
   llevan.** En la jornada 3 el club escribió «A. Castrín» de octavo, la lista se
   quedó en ocho nombres —uno de ellos la «A» suelta— y el robot se plantó con

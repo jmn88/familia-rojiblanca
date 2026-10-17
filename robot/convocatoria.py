@@ -107,10 +107,16 @@ def main():
     if not plantilla:
         return salir({"ok": False, "motivo": "no hay plantilla con la que comparar"})
 
-    slug = comun.buscar_noticia("convocatoria", jornada["rival"])
+    vistas = []
+    slug = comun.buscar_noticia("convocatoria", jornada["rival"], vistas)
     if not slug:
+        # Se cuentan las direcciones vistas: si la noticia esta y no casa, aqui
+        # se ve como la ha titulado el club.
         return salir({"ok": False, "jornada": jornada["numero"],
-                      "motivo": "todavia no esta publicada la convocatoria contra %s" % jornada["rival"]})
+                      "motivo": "todavia no esta publicada la convocatoria contra %s "
+                                "(busque %s; direcciones con ese prefijo en la portada: %s)"
+                                % (jornada["rival"], "/".join(comun.palabras_rival(jornada["rival"])),
+                                   ", ".join(vistas) or "ninguna")})
 
     url = "%s/actualidad/noticias/%s" % (comun.BASE, slug)
     nombres, casados, sueltos = mejor_lista(comun.pedir(url), plantilla)
