@@ -627,6 +627,14 @@ ejecución deshace ese fichero entero.
   horarias del sistema, que en Windows no existe (así que ni se puede probar aquí)
   y en otros sitios es una dependencia más. Las horas ya vienen pasadas a la de
   Madrid y escritas desde SQL (`kickoff_local`, `cierre_local`, `hoy`).
+- **26 de octubre de 2026 (jornada 10, Osasuna, 21:00): el cron del once no se
+  ejecutó entre las 16:51 y las 20:14 de Madrid**, con la ventana abierta desde
+  las 18:00; el «no hay ningún partido esperando el once» que se veía era del
+  pase de las 15:51, anterior a la ventana (fue lo que se leyó como fallo). No
+  era un fallo del código: GitHub no arrancó el robot en 3 h y media. Se lanzó
+  a mano desde Actions y se quedó vigilando. Si se repite, el siguiente paso es
+  ensanchar la ventana de `robot_pendiente_once()` o pasar a un despertador
+  externo; no se ha tocado nada.
 - **Los registros de Actions de un repositorio público los lee cualquiera.** El
   JSON de `robot_avisos_pendientes()` lleva los correos descifrados: `avisos.yml`
   no lo imprime nunca, y `robot/avisos.py` tapa cualquier dirección que pudiera
