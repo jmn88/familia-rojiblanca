@@ -128,12 +128,16 @@ def once_de(html, plantilla=None):
 
 
 def tras_con(trozo):
-    """Las maneras de leer una entrada: desde cada «con» que lleve, y entera.
+    """Las maneras de leer una entrada: desde cada «con» o «:» que lleve, y entera.
 
     La lista de nombres va al final y lo de delante solo estorba, asi que se
     prueba primero lo mas corto (desde el ultimo «con») y al final la entrada
     tal cual, por si no lleva ninguno."""
     variantes = [trozo[m.end():] for m in re.finditer(r"\bcon\b", trozo, flags=re.IGNORECASE)]
+    # J11: «... Unal. Así saldrán los blanquirrojos: Odysseas, Juan Iglesias, ...»,
+    # sin «con» y en un párrafo aparte que, al quitar las etiquetas, queda pegado
+    # al once del rival. Lo que va detrás de cada «:» también es una lista posible.
+    variantes += [trozo[m.end():] for m in re.finditer(r":\s+", trozo)]
     variantes.append(trozo)
     return sorted(variantes, key=len)
 
