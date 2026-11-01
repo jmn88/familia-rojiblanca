@@ -634,7 +634,12 @@ ejecución deshace ese fichero entero.
   era un fallo del código: GitHub no arrancó el robot en 3 h y media. Se lanzó
   a mano desde Actions y se quedó vigilando. Si se repite, el siguiente paso es
   ensanchar la ventana de `robot_pendiente_once()` o pasar a un despertador
-  externo; no se ha tocado nada.
+  externo. **1 de noviembre (jornada 11)** pasó otra vez, 14 h sin ninguna
+  ejecución; el usuario eligió el despertador externo (cron-job.org llamando
+  a `workflow_dispatch` de `once.yml` cada 10 min, con un token de GitHub
+  fine-grained solo con «Actions: write»). Pasos en el README, «El once inicial».
+  **Pendiente de que él lo monte**: sin código nuevo. Si dispatches encolados
+  estorbaran, el grupo `robot-once` ya deja solo uno en espera.
 - **Los registros de Actions de un repositorio público los lee cualquiera.** El
   JSON de `robot_avisos_pendientes()` lleva los correos descifrados: `avisos.yml`
   no lo imprime nunca, y `robot/avisos.py` tapa cualquier dirección que pudiera

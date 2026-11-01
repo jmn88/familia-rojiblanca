@@ -264,6 +264,41 @@ inicial*—, cada uno con su botón *Run workflow* en la pestaña **Actions**. V
 aparte a propósito: son cosas distintas y en momentos distintos, y así ninguna
 arrastra a la otra si falla.
 
+### Un despertador externo (porque GitHub no arranca el robot a su hora)
+
+El reloj de GitHub Actions no cumple lo que se le pide: en las jornadas 6, 10 y
+11 estuvo horas sin arrancar el robot del once, con el partido encima. Por eso un
+servicio gratuito, **cron-job.org**, llama a GitHub cada 10 minutos y le dice
+«lanza el robot». Si el robot ya está esperando, esa llamada queda en cola y no
+estorba. Se monta una sola vez:
+
+1. **Un token de GitHub** que solo sirva para esto. En GitHub: foto de perfil →
+   *Settings* → *Developer settings* → *Personal access tokens* → *Fine-grained
+   tokens* → *Generate new token*. Nombre `despertador-once`; caducidad, la
+   máxima (1 año); *Repository access* → *Only select repositories* →
+   `familia-rojiblanca`; en *Permissions* → *Repository permissions* →
+   **Actions: Read and write** (nada más). Copia el token que empieza por
+   `github_pat_` (solo se enseña una vez).
+2. **Una cuenta en <https://cron-job.org>** (gratis) → *Create cronjob*:
+   - *Title*: `Once Sevilla`
+   - *URL*: `https://api.github.com/repos/jmn88/familia-rojiblanca/actions/workflows/once.yml/dispatches`
+   - *Execution schedule*: *Every 10 minutes*. En *Custom* se puede limitar a
+     las horas de partido (de 10:00 a 22:00 hora de Madrid) para no llamar de
+     madrugada.
+   - Pestaña *Advanced*: *Request method* → **POST**; *Request body* →
+     `{"ref":"main"}`; y en *Headers* estas tres:
+     - `Authorization` = `Bearer github_pat_...` (tu token)
+     - `Accept` = `application/vnd.github+json`
+     - `User-Agent` = `cron-job-org`
+   - Guardar y pulsar *Test run*: tiene que contestar **204**.
+3. Comprobarlo: en **Actions → Cargar el once inicial** debe aparecer una
+   ejecución nueva con la etiqueta *workflow_dispatch* cada 10 minutos, y las
+   que no tengan partido a la vista duran unos segundos.
+
+Si el token caduca o se revoca, cron-job.org empieza a recibir 401 y avisa por
+correo; se crea otro y se cambia en la cabecera. El `cron` de `once.yml` se queda
+como segundo despertador.
+
 > ¿Y por qué no se leen los tuits de @SevillaFC? Porque desde febrero de 2026 X
 > cobra por leer publicaciones y habría que darle una tarjeta. La web del club da
 > lo mismo, gratis y en texto limpio.
