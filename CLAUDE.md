@@ -752,6 +752,14 @@ paso de resultados dibujó la imagen (106 KB), la subió a la rama `resumenes`
 (`jornada-11.jpg`) y mandó el correo a los participantes con avisos. Lo que no se
 ha visto es el correo en una bandeja ni el once en la web; lo mira el usuario.
 
+**El despertador externo del once está montado y funcionando** (1 de noviembre
+de 2026): una tarea de cron-job.org (cuenta del usuario, cada 10 min, todo el
+día; la hora que enseña va en su zona, no en la de Madrid) hace POST a
+`/actions/workflows/once.yml/dispatches` con un token fine-grained de solo
+«Actions: write». Comprobado en Actions: ejecuciones `workflow_dispatch` a las
+16:30 y 16:40 UTC, solas y en verde. Si dejaran de salir: token caducado (1 año,
+da 401 en cron-job.org) o tarea desactivada.
+
 **El mercado de septiembre de 2026 se cierra con la rama
 `bajas-sin-borrar-historia`** (2 de septiembre de 2026), pendiente de PR. Antes
 de dar de baja a Oso hubo que arreglar que `api_estado` escondía a los jugadores
@@ -795,12 +803,6 @@ inactivos: ver la trampa de las bajas, más arriba.
    `bajas-sin-borrar-historia`**, o al dar de baja a Oso las jornadas 1 y 2 se
    quedan escritas a medias. A los fichajes, alta normal; a Oso, quitarle el
    «Activo» y nada más — borrarlo sí se llevaría por delante los puntos.
-5. **El despertador externo del once** (cron-job.org, ver README, «El once
-   inicial»): lo tiene que montar el usuario (token de GitHub + cuenta). Hasta
-   entonces, los días de partido hay que mirar Actions y lanzar «Cargar el once
-   inicial» a mano si no ha arrancado (falló en las jornadas 6, 10 y 11). Cuando
-   lo monte, comprobar en Actions que aparecen ejecuciones `workflow_dispatch`
-   cada 10 min, y borrar este punto.
 6. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
