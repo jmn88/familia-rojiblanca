@@ -560,6 +560,13 @@ ejecución deshace ese fichero entero.
   la plantilla**: la del rival, que va en la entrada de al lado con el mismo
   formato, la descarta el emparejado. Las frases conocidas se quedan solo como
   atajo. Comprobado contra los directos de las jornadas 3 a 6.
+- **Tercera forma de escribir el once (jornada 11, 1 de noviembre de 2026):**
+  «12:52: El Getafe, por su parte, alineará a …» y, en párrafo aparte, «Así
+  saldrán los blanquirrojos: Odysseas, Juan Iglesias, …, Stassin e Isaac.»: sin
+  «con», sin «|» y pegado al once del rival, así que salían 22 nombres juntos y
+  se descartaba (el robot decía «todavía no está publicado» con el once ya
+  puesto; se marcó a mano). `tras_con()` ahora prueba también lo que va detrás
+  de cada «: » (PR #27, pendiente de fusionar al escribir esto).
 - **El club escribe el once en MAYÚSCULAS.** Buscar «once» en minúsculas solo
   encuentra cadenas de la tienda («LINEUP: Alineaciones»), y por eso se dio por
   hecho —mal— que el club no publicaba la alineación.
