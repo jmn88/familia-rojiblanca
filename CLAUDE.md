@@ -566,7 +566,7 @@ ejecución deshace ese fichero entero.
   «con», sin «|» y pegado al once del rival, así que salían 22 nombres juntos y
   se descartaba (el robot decía «todavía no está publicado» con el once ya
   puesto; se marcó a mano). `tras_con()` ahora prueba también lo que va detrás
-  de cada «: » (PR #27, pendiente de fusionar al escribir esto).
+  de cada «: » (PR #27, fusionado el 1 de noviembre).
 - **El club escribe el once en MAYÚSCULAS.** Buscar «once» en minúsculas solo
   encuentra cadenas de la tienda («LINEUP: Alineaciones»), y por eso se dio por
   hecho —mal— que el club no publicaba la alineación.
@@ -745,6 +745,13 @@ septiembre de 2026) y **estrenado de verdad**: el usuario lo compartió desde su
 Android y la hoja de compartir funcionó. De ahí salió el cambio a dos columnas
 (PR #22, fusionado).
 
+**Jornada 11 (Getafe, 1 de noviembre de 2026): primera vez que el once se
+publica solo y llega el correo de resultados de verdad.** Comprobado en Actions:
+el robot publicó el once (`publicado: true`) tras el arreglo de «: » (PR #27); el
+paso de resultados dibujó la imagen (106 KB), la subió a la rama `resumenes`
+(`jornada-11.jpg`) y mandó el correo a los participantes con avisos. Lo que no se
+ha visto es el correo en una bandeja ni el once en la web; lo mira el usuario.
+
 **El mercado de septiembre de 2026 se cierra con la rama
 `bajas-sin-borrar-historia`** (2 de septiembre de 2026), pendiente de PR. Antes
 de dar de baja a Oso hubo que arreglar que `api_estado` escondía a los jugadores
@@ -766,11 +773,9 @@ inactivos: ver la trampa de las bajas, más arriba.
    **El correo de prueba llegó** (13 de septiembre de 2026, jornada 5, con la
    imagen bien dibujada en Linux: fuentes y emojis correctos). De ahí salió el
    PR «Resumen en el correo» (rama `resumen-en-el-correo`): imagen a la vista
-   y en JPEG ligero, en vez de PNG adjunto. **Queda**: pasar la autoprueba; al
-   fusionar ese PR, repetir la prueba con «5» y ver que la imagen sale dentro
-   del correo y que aparece la rama `resumenes` con `jornada-5.jpg`; la primera
-   jornada de verdad es la 6 (Deportivo, 16 de septiembre a las 19:00). Las jornadas 1 a 5 no reciben correo
-   (`resultados_desde`).
+   y en JPEG ligero, en vez de PNG adjunto. **Queda**: pasar la autoprueba (la 1 de esta lista). Los
+   correos de resultados ya salen de verdad desde la jornada 11; las 1 a 5 no
+   reciben (`resultados_desde`).
 1. **Pasar `sql/99_autoprueba.sql`** por el SQL Editor de Supabase después de
    tocar el SQL: el proceso automático no la ejecuta a propósito. **Termina
    siempre en rojo** — lanza una excepción para revertir lo que crea; lo que vale
@@ -790,12 +795,12 @@ inactivos: ver la trampa de las bajas, más arriba.
    `bajas-sin-borrar-historia`**, o al dar de baja a Oso las jornadas 1 y 2 se
    quedan escritas a medias. A los fichajes, alta normal; a Oso, quitarle el
    «Activo» y nada más — borrarlo sí se llevaría por delante los puntos.
-5. **El robot del once**: cinco jornadas cazando la alineación él solo (1 a 5),
-   y en la 6 falló por la frase nueva del club (ver «Trampas»); arreglado en la
-   rama `once-sin-frase`. Además, ese día el cron de GitHub no lo arrancó entre
-   las 15:00 y las 17:47 (hora de Madrid; el partido era a las 19:00) y lo lanzó
-   el usuario a mano. Sigue sin estrenarse que lo publique él solo y que salga
-   el correo de resultados de verdad.
+5. **El despertador externo del once** (cron-job.org, ver README, «El once
+   inicial»): lo tiene que montar el usuario (token de GitHub + cuenta). Hasta
+   entonces, los días de partido hay que mirar Actions y lanzar «Cargar el once
+   inicial» a mano si no ha arrancado (falló en las jornadas 6, 10 y 11). Cuando
+   lo monte, comprobar en Actions que aparecen ejecuciones `workflow_dispatch`
+   cada 10 min, y borrar este punto.
 6. **Sin historial de alineaciones**: al cambiar un once se sobrescribe el
    anterior y se pierde. Se habló de guardar versiones y quedó en el aire, porque
    el cierre anticipado ya evita el caso que preocupaba.
