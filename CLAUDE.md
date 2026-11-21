@@ -567,6 +567,22 @@ ejecución deshace ese fichero entero.
   se descartaba (el robot decía «todavía no está publicado» con el once ya
   puesto; se marcó a mano). `tras_con()` ahora prueba también lo que va detrás
   de cada «: » (PR #27, fusionado el 1 de noviembre).
+- **La lista de convocados del club puede estar incompleta, y un convocado que
+  no esté en la plantilla se pierde sin avisar.** Jornada 13 (Betis, 21 de
+  noviembre de 2026): en la web salieron **20** convocados. El robot leyó la
+  noticia entera y bien, pero el párrafo del club traía solo 23 nombres —y el
+  propio texto decía «ha citado a 24 jugadores»—, así que **el club se dejó a
+  Stassin sin escribir**; y de esos 23, tres eran canteranos sin dar de alta
+  (Tamiou Kpebane, Marc Scuri y el portero Toscano), que `casar()` no puede
+  inventar. Las dos cosas se arreglan igual: dar de alta al que falte en
+  Admin → Plantilla y añadirlo a mano en Admin → Convocatoria, porque
+  `robot_convocatoria` no pisa una convocatoria ya cargada. **Lo que no se ve
+  es el problema**: los nombres que no casan van a `sueltos`, que solo aparece
+  en el registro de Actions, y el descuadre entre «cita a N» y los nombres
+  escritos no lo mira nadie. El usuario lo descubrió contando. Ojo además con
+  que un titular se quede fuera de la convocatoria: entonces `robot_once` no
+  publica el once (salvaguarda), lo deja propuesto y hay que resolverlo a mano.
+  **Pendiente**: avisar de las dos cosas en Admin.
 - **El club escribe el once en MAYÚSCULAS.** Buscar «once» en minúsculas solo
   encuentra cadenas de la tienda («LINEUP: Alineaciones»), y por eso se dio por
   hecho —mal— que el club no publicaba la alineación.
